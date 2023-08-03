@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 def parse_requirements(file):
     with open('requirements.txt', 'rb') as f:
-        return f.read().splitlines()
+        return f.read().decode().splitlines()
 
 requirements = parse_requirements("requirements.txt")
 print("REQUIREMENTS: ", requirements)
