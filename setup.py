@@ -1,8 +1,7 @@
 from setuptools import setup, find_packages
-from pathlib import Path
 
-def parse_requirements(requirements_path):
-    with open(Path(__file__).parent / requirements_path) as f:
+def parse_requirements(file):
+    with open('requirements.txt', 'rb') as f:
         return f.read().splitlines()
 
 requirements = parse_requirements("requirements.txt")
