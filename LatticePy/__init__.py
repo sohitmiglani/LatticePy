@@ -149,7 +149,7 @@ class lattice():
         else:
             return False
 
-    def add_protein(self, sequence=None, type='straight'):
+    def add_protein(self, sequence=None, type='straight', n_polymers=1):
         polymer = []
 
         for aa in list(sequence):
@@ -159,8 +159,14 @@ class lattice():
                 polymer.append(-1)
             else:
                 raise InputError('Unrecognized amino acid in sequence: {}'.format(aa))
-        
 
+        if type == 'straight':
+            self.add_polymer_straight(polymer, n_polymers=n_polymers)
+        elif type == 'random':
+            self.add_polymer_randomly(polymer, n_polymers=n_polymers)
+        else:
+            raise InputError('Unrecognized type of polymer placement: {}'.format(type))
+            
     def add_polymer_straight(self, polymer, n_polymers=1):
         length = len(polymer)
         x = randint(-self.bound+length+1, self.bound-length-1)
