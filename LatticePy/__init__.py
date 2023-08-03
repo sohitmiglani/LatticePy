@@ -149,6 +149,18 @@ class lattice():
         else:
             return False
 
+    def add_protein(self, sequence=None, type='straight'):
+        polymer = []
+
+        for aa in list(sequence):
+            if aa in 'GAVCPLIMWFKRH':
+                polymer.append(+1)
+            elif aa in 'STYNQDE':
+                polymer.append(-1)
+            else:
+                raise InputError('Unrecognized amino acid in sequence: {}'.format(aa))
+        
+
     def add_polymer_straight(self, polymer, n_polymers=1):
         length = len(polymer)
         x = randint(-self.bound+length+1, self.bound-length-1)
