@@ -34,6 +34,7 @@ class lattice():
         self.records = []
         self.current_move = None
         self.native_contacts = 0
+        self.non_covalent_hydrophobic_contacts = 0
         self.n_mcmc = 0
         
         bonds = [-1,-1,1,-1,1,1]
@@ -57,6 +58,7 @@ class lattice():
     def update_system_energy(self, nearest_neighbors=True):
         original_connections=nx.Graph()
         energy = 0
+        hydrophobic_contacts = 0
         for last in list(self.last.keys()):
             aa = self.space[str(last)]
             while aa.polarity != 0:
@@ -74,18 +76,22 @@ class lattice():
                     for neighbor in neighbors:
                         energy += self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity]
                         original_connections.add_edge(str(aa.coordinates), str(neighbor))
+                        if aa.polarity == -1 and self.space[str(neighbor)].polarity == -1:
+                            hydrophobic_contacts += 1
                 if aa.previous != None:
                     next = self.space[str(aa.previous)]
                     aa=next
                 else:
                     break
         self.native_contacts = len(original_connections.edges)
+        self.non_covalent_hydrophobic_contacts = hydrophobic_contacts
         self.energy = energy
 
     def find_subsystem_energy(self, originals, replacements, start_or_end):
         original_energy = 0
         non_existing = [i for i in originals if i not in replacements]
         original_connections=nx.Graph()
+        original_NCHC = 0
         
         i  = 0
         for aa in originals:
@@ -112,9 +118,12 @@ class lattice():
             for neighbor in neighbors:
                 original_energy += self.bond_energies[self.space[aa].polarity][self.space[str(neighbor)].polarity]
                 original_connections.add_edge(str(aa),str(neighbor))
+                if self.space[aa].polarity == -1 and self.space[str(neighbor)].polarity == -1:
+                    original_NCHC += 1
             i += 1
 
         new_connections=nx.Graph()
+        new_NCHC = 0
         new_energy = 0
         i = 0
         for (original, aa) in zip(originals, replacements):
@@ -141,8 +150,10 @@ class lattice():
             for neighbor in neighbors:
                 new_energy += self.bond_energies[self.space[original].polarity][self.space[str(neighbor)].polarity]
                 new_connections.add_edge(str(aa),str(neighbor))
+                if self.space[original].polarity == -1 and self.space[str(neighbor)].polarity == -1:
+                    new_NCHC += 1
             i += 1
-        return new_energy - original_energy, len(new_connections.edges) - len(original_connections.edges)
+        return new_energy - original_energy, len(new_connections.edges) - len(original_connections.edges), new_NCHC - old_NCHC
 
     def move_success(self, deltaE):
         if random() < np.exp(-deltaE*self.beta):
@@ -272,10 +283,11 @@ class lattice():
         self.update_system_energy()
 
     def move_chain(self, originals, replacements, inflection_point, start_or_end):
-        deltaE, deltaNC = self.find_subsystem_energy(originals, replacements, start_or_end)
+        deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
         if self.move_success(deltaE):
             self.energy += deltaE
             self.native_contacts += deltaNC
+            self.non_covalent_hydrophobic_contacts += deltaNCHC
             all_objects = []
             for aa_step in range(len(originals)):
                 original = copy.copy(originals[aa_step])
