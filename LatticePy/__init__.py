@@ -727,7 +727,8 @@ class lattice():
 
         annotations = [dict(x=x_min-2, y=y_min-2, z=z_max+1, text='Energy: {}'.format(round(self.energy,2)), showarrow=False), 
                        dict(x=x_min-2, y=y_min-2, z=z_max+3, text='Native Contacts: {}'.format(self.native_contacts), showarrow=False),
-                       dict(x=x_min-2, y=y_min-2, z=z_max+5, text='Current Beta: {}'.format(round(self.beta,2)), showarrow=False) ]          
+                       dict(x=x_min-2, y=y_min-2, z=z_max+5, text='Non Covalent Hydrophobic Contacts: {}'.format(self.non_covalent_hydrophobic_contacts), showarrow=False),
+                       dict(x=x_min-2, y=y_min-2, z=z_max+7, text='Current Beta: {}'.format(round(self.beta,2)), showarrow=False)]          
         fig = go.Figure(data=data)
         fig.update_layout(scene=dict(annotations=annotations))
         plotly.offline.iplot(fig, filename='simple-3d-scatter')
