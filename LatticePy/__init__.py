@@ -153,7 +153,7 @@ class lattice():
                 if self.space[original].polarity == -1 and self.space[str(neighbor)].polarity == -1:
                     new_NCHC += 1
             i += 1
-        return new_energy - original_energy, len(new_connections.edges) - len(original_connections.edges), new_NCHC - old_NCHC
+        return new_energy - original_energy, len(new_connections.edges) - len(original_connections.edges), new_NCHC - original_NCHC
 
     def move_success(self, deltaE):
         if random() < np.exp(-deltaE*self.beta):
