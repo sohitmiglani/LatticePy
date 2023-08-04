@@ -16,7 +16,7 @@ import copy
 import networkx as nx
 
 class lattice():
-    def __init__(self, bound, bond_energies, beta=0, lattice_type='simple_cubic'):
+    def __init__(self, bound, Ec, beta=0, lattice_type='simple_cubic'):
         self.lattice_type = lattice_type
         self.bound = bound
         self.space = dict()
@@ -37,6 +37,7 @@ class lattice():
         self.n_mcmc = 0
         
         bonds = [-1,-1,1,-1,1,1]
+        bond_energies = [-2.3-Ec, -1-Ec, -Ec]
         for i in range(3):
             self.bond_energies[bonds[2*i]][bonds[2*i+1]] = bond_energies[i]
             self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
