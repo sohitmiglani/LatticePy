@@ -7,14 +7,14 @@ A one-stop package for simulating biomolecules on a lattice.
 ### Stable Release
 Run the following command in bash:
 
-```zsh
+```bash
 pip3 install LatticePy
 ```
 
 ### Developers Release
 Run the following command in bash:
 
-```zsh
+```bash
 pip3 install git+https://github.com/sohitmiglani/LatticePy#egg=LatticePy
 ```
 
@@ -43,7 +43,7 @@ mylattice.add_protein(sequence, type='straight', n_polymers=1)
 ### 3. Simulate your polymers with annealing
 
 Change the parameters as you see fit
-```
+```python
 mylattice.simulate(n_mcmc=200000, 
                    interval=1000, 
                    record_intervals = True, 
@@ -55,6 +55,6 @@ mylattice.simulate(n_mcmc=200000,
 
 ### 4. Visualize in an interactive 3-D lattice
 
-```
+```python
 mylattice.visualize()
 ```
