@@ -644,7 +644,7 @@ class lattice():
         self.beta = beta_lower_bound - beta_interval
         self.n_mcmc = 0
         current_stability = False
-        for step in range(n_mcmc)
+        for step in range(n_mcmc):
             if anneal:
                 if step%substep == 0:
                     self.beta += beta_interval
