@@ -643,13 +643,12 @@ class lattice():
         substep = round(n_mcmc*beta_interval/(beta_upper_bound - beta_lower_bound), 0)
         self.beta = beta_lower_bound - beta_interval
         self.n_mcmc = 0
-
-        for step in range(n_mcmc):
+        current_stability = False
+        for step in range(n_mcmc)
             if anneal:
                 if step%substep == 0:
                     self.beta += beta_interval
                     self.beta = round(self.beta, 2)
-
             all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move]
             if self.n_polymers > 1:
                 all_functions.append(self.reptation_move)
@@ -660,10 +659,10 @@ class lattice():
                 self.records.append(out)
                 self.energy_records.append(copy.copy(self.energy))
                 self.beta_records.append(copy.copy(self.beta))
-
             if step%(n_mcmc/10) == 0:
                 print('Completion: {}%'.format(step*100/n_mcmc))
-                current_stability = self.energy == self.energy_records[-1]
+                if step > 0:
+                    current_stability = self.energy == self.energy_records[-1]
                 if current_stability and record_intervals:
                     if self.intermediate_stability:
                         if self.stability:
