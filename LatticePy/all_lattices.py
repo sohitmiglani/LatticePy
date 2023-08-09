@@ -35,6 +35,7 @@ class lattice():
         self.non_covalent_hydrophobic_contacts = 0
         self.n_mcmc = 0
         self.stability = False
+        self.intermediate_stability = False
         
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
