@@ -34,6 +34,7 @@ class lattice():
         self.native_contacts = 0
         self.non_covalent_hydrophobic_contacts = 0
         self.n_mcmc = 0
+        self.stability = False
         
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
@@ -589,10 +590,9 @@ class lattice():
     def simulate(self, n_mcmc=10000, interval=100, record_intervals=False, anneal=True, beta_lower_bound=0, beta_upper_bound=1, beta_interval=0.05):
         substep = round(n_mcmc*beta_interval/(beta_upper_bound - beta_lower_bound), 0)
         self.beta = beta_lower_bound - beta_interval
-        self.n_mcmc += n_mcmc
+        self.n_mcmc = 0
 
         for step in range(n_mcmc):
-
             if anneal:
                 if step%substep == 0:
                     self.beta += beta_interval
@@ -612,7 +612,7 @@ class lattice():
             else:
                 self.current_move = 'corner_flip'
                 self.corner_flip()
-
+            self.n_mcmc += 1
             if record_intervals and step%interval == 0 and step > 0:
                 out = self.visualize(simulating=True)
                 self.records.append(out)
@@ -621,8 +621,18 @@ class lattice():
 
             if step%(n_mcmc/10) == 0:
                 print('Completion: {}%'.format(step*100/n_mcmc))
+                current_stability = self.energy == self.energy_records[-1]
+                if current_stability and record_intervals:
+                    if self.intermediate_stability:
+                        if self.stability:
+                            return('The simulation has plateaued at a system energy of {}'.format(self.energy))
+                        self.stability = current_stability
+                    else:
+                        self.intermediate_stability = True
+                else:
+                    self.intermediate_stability = False
+                    self.stability = False
                 sys.stdout.flush()
-
         print('Fully Completed and Validated.')
 
     def energy_variation_graph(self):
