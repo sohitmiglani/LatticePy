@@ -1,17 +1,18 @@
-import matplotlib.pyplot as plt
-import seaborn as sns 
-sns.set()
-import pandas as pd
-import numpy as np
-from .objects import amino_acid
-from random import randint, choice, random
-import plotly.graph_objects as go
-import plotly
-import plotly.io as pio
-pio.renderers.default = 'iframe_connected'
 import sys
 import copy
+import plotly
+import numpy as np
+import pandas as pd
+import seaborn as sns 
 import networkx as nx
+import plotly.io as pio
+from .objects import amino_acid
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from random import randint, choice, random
+
+sns.set()
+pio.renderers.default = 'iframe_connected'
 
 class lattice():
     def __init__(self, bound, E_c, beta=0, lattice_type='simple_cubic'):
@@ -634,6 +635,9 @@ class lattice():
                     done = True
                 else:
                     center_coordinates = self.space[str(center_coordinates)].next
+
+    def reptation_move(self):
+        return True
 
     def simulate(self, n_mcmc=10000, interval=100, record_intervals=False, anneal=True, beta_lower_bound=0, beta_upper_bound=1, beta_interval=0.05):
         substep = round(n_mcmc*beta_interval/(beta_upper_bound - beta_lower_bound), 0)
