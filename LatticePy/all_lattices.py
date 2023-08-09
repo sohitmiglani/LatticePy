@@ -297,21 +297,19 @@ class lattice():
                 original = copy.copy(originals[aa_step])
                 replacement = copy.copy(replacements[aa_step])
                 replacement_int = [int(i) for i in replacement.strip('][').split(', ')].copy()
-
                 original_aa = copy.copy(self.space[original])
                 original_aa.coordinates = replacement_int.copy()
-
                 if start_or_end == 0:
                     if aa_step != 0: 
                         original_aa.next = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
                         #original_aa.next = inflection_point.copy()#else:
-                    if original_aa.previous is not None and len(replacements) > 1:
+                    if original_aa.previous is not None and len(replacements) > 1 and aa_step < len(originals)-1:
                         original_aa.previous = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
                 elif start_or_end == 1:
                     if aa_step != 0:
                         original_aa.previous = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
                         #original_aa.previous = inflection_point.copy()#else:
-                    if original_aa.next is not None and len(replacements) > 1:
+                    if original_aa.next is not None and len(replacements) > 1 and aa_step < len(originals)-1:
                         original_aa.next = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
                 all_objects.append(copy.copy(original_aa))
             
@@ -455,7 +453,7 @@ class lattice():
                     first_try[axis_of_replacement] += direction
                     second_try[axis_of_replacement] += direction
                     if self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
-                        if self.move_chain([str(first_coordinates), str(second_coordinates)], [str(first_try), str(second_try)], coordinates, 0):    
+                        if self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], coordinates, 0):    
                             return True
                     else:
                         continue
