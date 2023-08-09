@@ -454,8 +454,8 @@ class lattice():
                     second_try = second_rep.copy()
                     first_try[axis_of_replacement] += direction
                     second_try[axis_of_replacement] += direction
-                    if self.space[str(first_try)],polarity == 0 and  self.space[str(second_try)],polarity == 0:
-                        if self.move_chain([first_coordinates, second_coordinates], [first_try, second_try], coordinates, 0):    
+                    if self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
+                        if self.move_chain([str(first_coordinates), str(second_coordinates)], [str(first_try), str(second_try)], coordinates, 0):    
                             return True
                     else:
                         continue
