@@ -36,6 +36,7 @@ class lattice():
         self.n_mcmc = 0
         self.stability = False
         self.intermediate_stability = False
+        self.n_polymers = 0
         
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
@@ -246,6 +247,7 @@ class lattice():
             self.length_of_polymer = length
             self.last[str(next_coordinates)] = 1
             self.update_system_energy()
+            self.n_polymers += 1
 
     def add_polymer_randomly(self, polymer):
         length = len(polymer)
@@ -281,6 +283,7 @@ class lattice():
 
         self.last[str(next_coordinates)] = 1
         self.update_system_energy()
+        self.n_polymers += 1
 
     def move_chain(self, originals, replacements, inflection_point, start_or_end):
         deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
@@ -338,6 +341,9 @@ class lattice():
                 self.space[replacement] = replacement_object
                 if original not in replacements:
                     self.space[original] = amino_acid(0, original_int)
+            return True
+        else:
+            return False
 
     def validate_chain(self):
         i = 0
@@ -384,7 +390,6 @@ class lattice():
         next_coordinates = None
         tries = 0
         back = []
-
         while next_aa_polarity != 0 and tries < 5:
             tries += 1
             next_coordinates = coordinates.copy()  
@@ -401,19 +406,61 @@ class lattice():
             next_axis = choice([i for i in [0,1,2] if i != axis])
             direction = choice([1, -1])
             next_coordinates[next_axis] += direction
-
             if str(next_coordinates) not in self.space:
-                continue 
-
+                continue
         if self.space[str(next_coordinates)].polarity != 0:
             return False
-        
         self.validate_chain()
         self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
         self.validate_chain()
 
+    def crankshaft_move(self):
+        coordinates = choice(list(self.start.keys()))
+        aa = self.space[coordinates]
+        coordinates = coordinates.strip('][').split(', ')
+        coordinates = [int(i) for i in coordinates]
+        tries = 0
+        while tries < self.length_of_polymer-3:
+            axis_1 = None
+            axis_2 = None
+            axis_3 = None
+            first_coordinates = aa.next.copy()
+            second_coordinates = self.space[str(first_coordinates)].next.copy()
+            third_coordinates = self.space[str(second_coordinates)].next.copy()
+            tries += 1
+            for i in range(3):
+                if coordinates[i] != first_coordinates[i]:
+                    axis_1 = i
+            back_direction = None
+            for j in range(3):
+                if second_coordinates[j] != third_coordinates[j]:
+                    back_direction = third_coordinates[j] - second_coordinates[j]
+                    axis_3 = j
+                    
+            if axis_1 == axis_3:
+                for i in range(3):
+                    if first_coordinates[i] != second_coordinates[i]:
+                        axis_2 = i
+                axis_of_replacement = [i for i in [0,1,2] if i not in [axis_1, axis_2]][0]
+
+                first_rep = first_coordinates.copy()
+                second_rep = second_coordinates.copy()
+                first_rep[axis_1] += back_direction
+                second_rep[axis_1] += back_direction
+
+                for direction in [1, -1]:
+                    first_try = first_rep.copy()
+                    second_try = second_rep.copy()
+                    first_try[axis_of_replacement] += direction
+                    second_try[axis_of_replacement] += direction
+                    if self.space[str(first_try)],polarity == 0 and  self.space[str(second_try)],polarity == 0:
+                        if self.move_chain([first_coordinates, second_coordinates], [first_try, second_try], coordinates, 0):    
+                            return True
+                    else:
+                        continue
+            aa = self.space[str(aa.next.copy())]
+
     def corner_move(self):
-        self.validate_chain()
         polymer_id=choice(range(len(self.start.keys())))
         start_or_end=choice([0,1])
         deltaE = 0
@@ -599,20 +646,10 @@ class lattice():
                     self.beta += beta_interval
                     self.beta = round(self.beta, 2)
 
-            num = random()
-            if num < 0.25:
-                self.current_move = 'end_move'
-                self.end_move()
-                
-            elif num >= 0.25 and num < 0.5:
-                self.current_move = 'corner_move'
-                self.corner_move()
-            elif num >= 0.5 and num < 0.75:
-                self.current_move = 'corner_anywhere'
-                self.corner_move_anywhere()
-            else:
-                self.current_move = 'corner_flip'
-                self.corner_flip()
+            all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move]
+            if n_polymers > 1:
+                all_functions.append(self.reptation_move)
+            choice(all_functions)()
             self.n_mcmc += 1
             if record_intervals and step%interval == 0 and step > 0:
                 out = self.visualize(simulating=True)
@@ -648,7 +685,6 @@ class lattice():
         plt.xlabel('Number of MCMC steps')
         plt.ylabel('System Energy')
         plt.show()
-
 
     def animate(self):
         def make_figure(i):
