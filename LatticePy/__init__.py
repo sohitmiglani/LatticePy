@@ -1,3 +1,3 @@
 #!/usr/bin/env python3
 
-from .all_mattices import lattice
+from .all_lattices import lattice
