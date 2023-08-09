@@ -651,7 +651,7 @@ class lattice():
                     self.beta = round(self.beta, 2)
 
             all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move]
-            if n_polymers > 1:
+            if self.n_polymers > 1:
                 all_functions.append(self.reptation_move)
             choice(all_functions)()
             self.n_mcmc += 1
