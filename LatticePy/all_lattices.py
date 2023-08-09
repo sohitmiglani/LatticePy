@@ -288,6 +288,7 @@ class lattice():
 
     def move_chain(self, originals, replacements, inflection_point, start_or_end):
         deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
+        self.validate_chain()
         if self.move_success(deltaE):
             self.energy += deltaE
             self.native_contacts += deltaNC
@@ -340,6 +341,7 @@ class lattice():
                 self.space[replacement] = replacement_object
                 if original not in replacements:
                     self.space[original] = amino_acid(0, original_int)
+            self.validate_chain()
             return True
         else:
             return False
@@ -375,7 +377,6 @@ class lattice():
         return True
 
     def end_move(self):
-        self.validate_chain()
         start_or_end=choice([0,1])
         deltaE = 0
         coordinates = choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
@@ -409,9 +410,7 @@ class lattice():
                 continue
         if self.space[str(next_coordinates)].polarity != 0:
             return False
-        self.validate_chain()
         self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
-        self.validate_chain()
 
     def crankshaft_move(self):
         coordinates = choice(list(self.start.keys()))
@@ -503,10 +502,8 @@ class lattice():
         originals = [str(next_coordinates), str(coordinates)]
         replacements = [str(second_rep), str(first_rep)]
         self.move_chain(originals, replacements, third, start_or_end)
-        self.validate_chain()
 
     def corner_move_anywhere(self):
-        self.validate_chain()
         polymer_id=choice(range(len(self.start.keys())))
         start_or_end=choice([0,1])
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
@@ -591,9 +588,7 @@ class lattice():
             return False
 
         if len(to_be_replaced.keys()) == len(replacements.keys()) and len(to_be_replaced.keys())>0:
-            self.validate_chain()
             self.move_chain( list(to_be_replaced.keys()), list(replacements.keys()), inflection_point, start_or_end)
-            self.validate_chain()
 
     def corner_flip(self):
         done = False
