@@ -1,5 +1,6 @@
 import sys
 import copy
+import math
 import plotly
 import numpy as np
 import pandas as pd
@@ -38,6 +39,7 @@ class lattice():
         self.stability = False
         self.intermediate_stability = False
         self.n_polymers = 0
+        self.last_move = 'none'
         
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
@@ -303,13 +305,11 @@ class lattice():
                 if start_or_end == 0:
                     if aa_step != 0: 
                         original_aa.next = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
-                        #original_aa.next = inflection_point.copy()#else:
                     if original_aa.previous is not None and len(replacements) > 1 and aa_step < len(originals)-1:
                         original_aa.previous = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
                 elif start_or_end == 1:
                     if aa_step != 0:
                         original_aa.previous = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
-                        #original_aa.previous = inflection_point.copy()#else:
                     if original_aa.next is not None and len(replacements) > 1 and aa_step < len(originals)-1:
                         original_aa.next = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
                 all_objects.append(copy.copy(original_aa))
@@ -373,6 +373,11 @@ class lattice():
                 print(records)
                 print(next_coordinate)
                 sys.exit('chain duplicated')
+            
+            if math.dist(start.coordinates, start.next) != 1:
+                print(start.coordinates, start.next)
+                sys.exit('invalid neighbors')
+            
             start = self.space[str(next_coordinate)]
         return True
 
@@ -411,23 +416,27 @@ class lattice():
         if self.space[str(next_coordinates)].polarity != 0:
             return False
         self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
+        self.last_move = 'end_move'
 
     def crankshaft_move(self):
         coordinates = choice(list(self.start.keys()))
         aa = self.space[coordinates]
-        coordinates = coordinates.strip('][').split(', ')
-        coordinates = [int(i) for i in coordinates]
         tries = 0
         while tries < self.length_of_polymer-3:
             axis_1 = None
             axis_2 = None
             axis_3 = None
+            coordinates = aa.coordinates.copy()
             first_coordinates = aa.next.copy()
             second_coordinates = self.space[str(first_coordinates)].next.copy()
             third_coordinates = self.space[str(second_coordinates)].next.copy()
+            first_direction = None
+            back_direction = None
             tries += 1
+            
             for i in range(3):
                 if coordinates[i] != first_coordinates[i]:
+                    first_direction = first_coordinates[i] - coordinates[i]
                     axis_1 = i
             back_direction = None
             for j in range(3):
@@ -435,12 +444,12 @@ class lattice():
                     back_direction = third_coordinates[j] - second_coordinates[j]
                     axis_3 = j
                     
-            if axis_1 == axis_3:
-                for i in range(3):
-                    if first_coordinates[i] != second_coordinates[i]:
-                        axis_2 = i
+            for k in range(3):
+                if first_coordinates[k] != second_coordinates[k]:
+                    axis_2 = k
+            
+            if axis_1 == axis_3 and axis_1 != axis_2 and first_direction*back_direction == -1:     
                 axis_of_replacement = [i for i in [0,1,2] if i not in [axis_1, axis_2]][0]
-
                 first_rep = first_coordinates.copy()
                 second_rep = second_coordinates.copy()
                 first_rep[axis_1] += back_direction
@@ -452,7 +461,8 @@ class lattice():
                     first_try[axis_of_replacement] += direction
                     second_try[axis_of_replacement] += direction
                     if self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
-                        if self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], coordinates, 0):    
+                        if self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], third_coordinates, 0):
+                            self.last_move = 'crankshaft'
                             return True
                     else:
                         continue
@@ -502,6 +512,7 @@ class lattice():
         originals = [str(next_coordinates), str(coordinates)]
         replacements = [str(second_rep), str(first_rep)]
         self.move_chain(originals, replacements, third, start_or_end)
+        self.last_move = 'corner'
 
     def corner_move_anywhere(self):
         polymer_id=choice(range(len(self.start.keys())))
@@ -589,6 +600,7 @@ class lattice():
 
         if len(to_be_replaced.keys()) == len(replacements.keys()) and len(to_be_replaced.keys())>0:
             self.move_chain( list(to_be_replaced.keys()), list(replacements.keys()), inflection_point, start_or_end)
+            self.last_move = 'anywhere'
 
     def corner_flip(self):
         done = False
@@ -624,7 +636,9 @@ class lattice():
                 replacement[before_axis] += first_direction
                 replacement[next_axis] += next_direction
                 if self.space[str(replacement)].polarity == 0:
-                    self.move_chain([str(center_coordinates)], [str(center_coordinates)], before, 0)
+                    if self.move_chain([str(center_coordinates)], [str(center_coordinates)], before, 0):
+                        self.last_move = 'flip'
+                        return True    
                     done = True
                 else:
                     center_coordinates = self.space[str(center_coordinates)].next
@@ -635,8 +649,7 @@ class lattice():
     def simulate(self, n_mcmc=10000, interval=100, record_intervals=False, anneal=True, beta_lower_bound=0, beta_upper_bound=1, beta_interval=0.05):
         substep = round(n_mcmc*beta_interval/(beta_upper_bound - beta_lower_bound), 0)
         self.beta = beta_lower_bound - beta_interval
-        self.n_mcmc = 0
-        current_stability = False
+
         for step in range(n_mcmc):
             if anneal:
                 if step%substep == 0:
@@ -652,20 +665,10 @@ class lattice():
                 self.records.append(out)
                 self.energy_records.append(copy.copy(self.energy))
                 self.beta_records.append(copy.copy(self.beta))
+                if len(self.energy_records) > 30 and np.var(self.energy_records[-30:-1]) == 0:
+                    return('The simulation has plateaued at a system energy of {}'.format(self.energy))
             if step%(n_mcmc/10) == 0:
                 print('Completion: {}%'.format(step*100/n_mcmc))
-                if step > 0:
-                    current_stability = self.energy == self.energy_records[-1]
-                if current_stability and record_intervals:
-                    if self.intermediate_stability:
-                        if self.stability:
-                            return('The simulation has plateaued at a system energy of {}'.format(self.energy))
-                        self.stability = current_stability
-                    else:
-                        self.intermediate_stability = True
-                else:
-                    self.intermediate_stability = False
-                    self.stability = False
                 sys.stdout.flush()
         print('Fully Completed and Validated.')
 
