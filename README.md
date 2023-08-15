@@ -52,19 +52,20 @@ mylattice.simulate(n_mcmc=200000,
                    beta_interval=0.05)
 ```
 
-### 4. Visualize in an interactive 3-D lattice
-
-```python
-mylattice.visualize()
-```
-{{< importPartial "LatticePy_figure.html" >}}
-
-### 5. Visualize the energy variation over all the MCMC steps
+### 4. Visualize the energy variation over all the MCMC steps
 
 ```python
 mylattice.energy_variation_graph()()
 ```
-![](layouts/energy_variation_graph.png)
+![](static/energy_variation_graph.png)
+
+### 5. Visualize in an interactive 3-D lattice
+
+```python
+mylattice.visualize()
+```
+
+
 
 
 
