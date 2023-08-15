@@ -1,5 +1,5 @@
 on: ["push", "pull_request"]
-
+github-token: ${{ secrets.GITHUB_TOKEN }}
 name: Test Coveralls
 
 jobs:
