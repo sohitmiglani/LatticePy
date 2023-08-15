@@ -1,11 +1,10 @@
 # LatticePy
-A one-stop package for simulating biomolecules on a lattice.
-
+A python package for MCMC simulations of folding and phase separation in biomolecules on a lattice. LatticePy currently supports the simulation of amino acids and protein polymers on a lattice with any given number of units.
 
 ## Installation
 
 ### Stable Release
-Run the following command in bash:
+Run the following command in bash (Not on PyPi yet) :
 
 ```bash
 pip3 install LatticePy
@@ -58,3 +57,14 @@ mylattice.simulate(n_mcmc=200000,
 ```python
 mylattice.visualize()
 ```
+{{< importPartial "LatticePy_figure.html" >}}
+
+### 5. Visualize the energy variation over all the MCMC steps
+
+```python
+mylattice.energy_variation_graph()()
+```
+![](layouts/energy_variation_graph.png)
+
+
+

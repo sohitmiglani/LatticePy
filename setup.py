@@ -7,7 +7,7 @@ def parse_requirements(file):
 requirements = parse_requirements("requirements.txt")
 print("REQUIREMENTS: ", requirements)
 
-VERSION = '0.0.1'
+VERSION = '0.1.0'
 DESCRIPTION = 'A package for simulating molecules on a lattice.'
 LONG_DESCRIPTION = 'A package that simulates multiple types of micromolecules such as proteins on a simple cubic or FCC lattice.'
 

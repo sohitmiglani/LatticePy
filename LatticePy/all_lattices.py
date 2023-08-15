@@ -716,7 +716,7 @@ class lattice():
 
         fig.show()
         
-    def visualize(self, simulating=False):
+    def visualize(self, simulating=False, to_html=False, html_file_name='LatticePy_figure.html'):
         data = []
         x_min = None
         y_min = None
@@ -775,4 +775,7 @@ class lattice():
                        dict(x=x_min-2, y=y_min-2, z=z_max+7, text='Current Beta: {}'.format(round(self.beta,2)), showarrow=False)]          
         fig = go.Figure(data=data)
         fig.update_layout(scene=dict(annotations=annotations))
-        plotly.offline.iplot(fig, filename='simple-3d-scatter')
+        if to_html:
+            fig.write_html(html_file_name)
+        else:
+            plotly.offline.iplot(fig, filename='simple-3d-scatter')
