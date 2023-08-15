@@ -2,6 +2,7 @@ import sys
 import copy
 import math
 import plotly
+import random
 import numpy as np
 import pandas as pd
 import seaborn as sns 
@@ -10,9 +11,9 @@ import plotly.io as pio
 from .objects import amino_acid
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
-from random import randint, choice, random
 
 sns.set()
+system_random = random.SystemRandom()
 pio.renderers.default = 'iframe_connected'
 
 class lattice():
@@ -160,7 +161,7 @@ class lattice():
         return new_energy - original_energy, len(new_connections.edges) - len(original_connections.edges), new_NCHC - original_NCHC
 
     def move_success(self, deltaE):
-        if random() < np.exp(-deltaE*self.beta):
+        if system_random.random() < np.exp(-deltaE*self.beta):
             return True
         else:
             return False
@@ -185,9 +186,9 @@ class lattice():
             
     def add_polymer_straight(self, polymer, n_polymers=1):
         length = len(polymer)
-        x = randint(-self.bound+length+1, self.bound-length-1)
-        y = randint(-self.bound+length+1, self.bound-length-1)
-        z = randint(-self.bound+length+1, self.bound-length-1)
+        x = system_random.randint(-self.bound+length+1, self.bound-length-1)
+        y = system_random.randint(-self.bound+length+1, self.bound-length-1)
+        z = system_random.randint(-self.bound+length+1, self.bound-length-1)
         polymers_placed = 0
         axis = 0
         direction = 0
@@ -198,11 +199,11 @@ class lattice():
             valid_path=False
 
             while polymers_placed>0 and valid_path is False:
-                new_coords = choice(list(self.start.keys()))
+                new_coords = system_random.choice(list(self.start.keys()))
                 new_coords = [int(i) for i in new_coords.strip('][').split(', ')].copy()
-                axis_start = choice([0,1,2])
-                change = choice([1,2])
-                new_coords[axis_start] += choice([+change, -change])
+                axis_start = system_random.choice([0,1,2])
+                change = system_random.choice([1,2])
+                new_coords[axis_start] += system_random.choice([+change, -change])
                 if str(new_coords) not in self.start.keys() and self.space[str(new_coords)].polarity == 0:
                     all_polarities = 0
                     start = new_coords.copy()
@@ -220,8 +221,8 @@ class lattice():
             if polymers_placed == 0:
                 valid_path=False
                 while valid_path!= True:
-                    axis = choice([0,1,2])
-                    direction = choice([1, -1])
+                    axis = system_random.choice([0,1,2])
+                    direction = system_random.choice([1, -1])
                     all_polarities = 0
                     start = new_coords.copy()
                     for i in range(length):
@@ -255,18 +256,18 @@ class lattice():
     def add_polymer_randomly(self, polymer):
         length = len(polymer)
         polymer_id = len(self.last.keys())
-        x = randint(-self.bound+length, self.bound-length)
-        y = randint(-self.bound+length, self.bound-length)
-        z = randint(-self.bound+length, self.bound-length)
+        x = system_random.randint(-self.bound+length, self.bound-length)
+        y = system_random.randint(-self.bound+length, self.bound-length)
+        z = system_random.randint(-self.bound+length, self.bound-length)
         
         while True:
             if self.space[str([x, y, z])].polarity == 0:
                 self.start[str([x, y, z])] = 1
                 break
             else:
-                x = randint(-self.bound+length, self.bound-length)
-                y = randint(-self.bound+length, self.bound-length)
-                z = randint(-self.bound+length, self.bound-length)
+                x = system_random.randint(-self.bound+length, self.bound-length)
+                y = system_random.randint(-self.bound+length, self.bound-length)
+                z = system_random.randint(-self.bound+length, self.bound-length)
 
         self.space[str([x, y, z])] = amino_acid(polymer[0], [x, y, z], polymer_id)
         current_a = self.space[str([x, y, z])]
@@ -275,8 +276,8 @@ class lattice():
             coordinates = current_a.coordinates
             while True:
                 next_coordinates = coordinates.copy()
-                axis = randint(0,2)
-                next_coordinates[axis] += randint(-1,1)
+                axis = system_random.randint(0,2)
+                next_coordinates[axis] += system_random.randint(-1,1)
                 if self.space[str(next_coordinates)].polarity == 0:
                     break
             self.space[str(coordinates)].next = next_coordinates
@@ -382,9 +383,9 @@ class lattice():
         return True
 
     def end_move(self):
-        start_or_end=choice([0,1])
+        start_or_end=system_random.choice([0,1])
         deltaE = 0
-        coordinates = choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
+        coordinates = system_random.choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
         coordinates = coordinates.strip('][').split(', ')
         coordinates = [int(i) for i in coordinates]
         if abs(coordinates[0]) >= self.bound-2 or abs(coordinates[1]) >= self.bound-2 or abs(coordinates[2])  >= self.bound-2:
@@ -408,8 +409,8 @@ class lattice():
                 if back[i] !=  next_coordinates[i]:
                     next_coordinates[i] = copy.copy(back[i])
                     axis = i
-            next_axis = choice([i for i in [0,1,2] if i != axis])
-            direction = choice([1, -1])
+            next_axis = system_random.choice([i for i in [0,1,2] if i != axis])
+            direction = system_random.choice([1, -1])
             next_coordinates[next_axis] += direction
             if str(next_coordinates) not in self.space:
                 continue
@@ -419,7 +420,7 @@ class lattice():
         self.last_move = 'end_move'
 
     def crankshaft_move(self):
-        coordinates = choice(list(self.start.keys()))
+        coordinates = system_random.choice(list(self.start.keys()))
         aa = self.space[coordinates]
         tries = 0
         while tries < self.length_of_polymer-3:
@@ -469,8 +470,8 @@ class lattice():
             aa = self.space[str(aa.next.copy())]
 
     def corner_move(self):
-        polymer_id=choice(range(len(self.start.keys())))
-        start_or_end=choice([0,1])
+        polymer_id=system_random.choice(range(len(self.start.keys())))
+        start_or_end=system_random.choice([0,1])
         deltaE = 0
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
         coordinates = coordinates.strip('][').split(', ')
@@ -499,8 +500,8 @@ class lattice():
                     first_direction = third[i] - second_rep[i]
                     second_rep[i] = third[i]
                     axis = i
-            next_axis = choice([i for i in [0,1,2] if i != axis])
-            next_direction = choice([1, -1])
+            next_axis = system_random.choice([i for i in [0,1,2] if i != axis])
+            next_direction = system_random.choice([1, -1])
             second_rep[next_axis] += next_direction
             first_rep = coordinates.copy()
             first_rep[axis] += first_direction
@@ -515,8 +516,8 @@ class lattice():
         self.last_move = 'corner'
 
     def corner_move_anywhere(self):
-        polymer_id=choice(range(len(self.start.keys())))
-        start_or_end=choice([0,1])
+        polymer_id=system_random.choice(range(len(self.start.keys())))
+        start_or_end=system_random.choice([0,1])
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
         coordinates = coordinates.strip('][').split(', ')
         coordinates = [int(i) for i in coordinates]
@@ -524,19 +525,19 @@ class lattice():
         if abs(coordinates[0]) >= self.bound-5 or abs(coordinates[1]) >= self.bound-5 or abs(coordinates[2])  >= self.bound-5:
             return False
 
-        steps = randint(2, self.length_of_polymer-2)
-        all_choices = []
+        steps = system_random.randint(2, self.length_of_polymer-2)
+        all_system_random.choices = []
 
         if start_or_end == 0:
             for step in range(steps):
                 coordinates = self.space[str(coordinates)].next.copy()
-                all_choices.append(coordinates)
+                all_system_random.choices.append(coordinates)
         else:
             for step in range(steps):
                 coordinates = self.space[str(coordinates)].previous.copy()
-                all_choices.append(coordinates)
+                all_system_random.choices.append(coordinates)
 
-        inflection_point = choice(all_choices)
+        inflection_point = system_random.choice(all_system_random.choices)
         valid_path = False
         tries = 0
         to_be_replaced = {}
@@ -558,8 +559,8 @@ class lattice():
                     first_direction = inflection_point[i] - first_aa[i]
                     first_aa[i] = copy.copy(inflection_point[i])
                     first_axis = i
-            next_axis = choice([i for i in [0,1,2] if i != first_axis])
-            next_direction = choice([1, -1])
+            next_axis = system_random.choice([i for i in [0,1,2] if i != first_axis])
+            next_direction = system_random.choice([1, -1])
             first_aa[next_axis] += next_direction
             to_be_replaced = {}
             to_be_replaced_list = []
@@ -605,7 +606,7 @@ class lattice():
     def corner_flip(self):
         done = False
         tries = 5
-        start=choice(list(self.start.keys()))
+        start=system_random.choice(list(self.start.keys()))
         center_coordinates = self.space[start].next.copy()
         replacement = None
 
@@ -658,7 +659,7 @@ class lattice():
             all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move]
             if self.n_polymers > 1:
                 all_functions.append(self.reptation_move)
-            choice(all_functions)()
+            system_random.choice(all_functions)()
             self.n_mcmc += 1
             if record_intervals and step%interval == 0 and step > 0:
                 out = self.visualize(simulating=True)
