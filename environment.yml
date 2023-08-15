@@ -1,4 +1,4 @@
-name: LatticePy
+name: latticepy_env
 channels:
   - conda-forge
   - bioconda
