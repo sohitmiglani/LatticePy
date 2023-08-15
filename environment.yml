@@ -1,0 +1,16 @@
+name: LatticePy
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pandas
+  - matplotlib
+  - seaborn
+  - numpy
+  - plotly
+  - networkx
+  - pip:
+    - git+https://github.com/sohitmiglani/LatticePy
