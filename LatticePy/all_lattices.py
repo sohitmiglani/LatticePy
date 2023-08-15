@@ -526,18 +526,18 @@ class lattice():
             return False
 
         steps = system_random.randint(2, self.length_of_polymer-2)
-        all_system_random.choices = []
+        all_selections = []
 
         if start_or_end == 0:
             for step in range(steps):
                 coordinates = self.space[str(coordinates)].next.copy()
-                all_system_random.choices.append(coordinates)
+                all_selections.append(coordinates)
         else:
             for step in range(steps):
                 coordinates = self.space[str(coordinates)].previous.copy()
-                all_system_random.choices.append(coordinates)
+                all_selections.append(coordinates)
 
-        inflection_point = system_random.choice(all_system_random.choices)
+        inflection_point = system_random.choice(all_selections)
         valid_path = False
         tries = 0
         to_be_replaced = {}
