@@ -174,14 +174,14 @@ class lattice():
             elif aa in 'STYNQDE':
                 polymer.append(-1)
             else:
-                raise InputError('Unrecognized amino acid in sequence: {}'.format(aa))
+                raise InputError('Unrecognized amino acid in sequence: {}'.format(aa)) #noqa
 
         if type == 'straight':
             self.add_polymer_straight(polymer, n_polymers=n_polymers)
         elif type == 'random':
             self.add_polymer_randomly(polymer, n_polymers=n_polymers)
         else:
-            raise InputError('Unrecognized type of polymer placement: {}'.format(type))
+            raise InputError('Unrecognized type of polymer placement: {}'.format(type)) #noqa
             
     def add_polymer_straight(self, polymer, n_polymers=1):
         length = len(polymer)
