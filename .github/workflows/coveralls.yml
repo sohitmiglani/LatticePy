@@ -1,7 +1,5 @@
 on: ["push", "pull_request"]
-github-token: ${{ secrets.GITHUB_TOKEN }}
 name: Test Coveralls
-
 jobs:
 
   build:
@@ -10,3 +8,5 @@ jobs:
     steps:
     - name: Coveralls GitHub Action
       uses: coverallsapp/github-action@v2
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
