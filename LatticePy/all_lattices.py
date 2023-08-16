@@ -32,6 +32,7 @@ class lattice():
         self.length_of_polymer = 0
         self.energy_records = []
         self.beta_records = []
+        self.native_contacts_records = []
         self.records = []
         self.current_move = None
         self.native_contacts = 0
@@ -666,6 +667,7 @@ class lattice():
                 self.records.append(out)
                 self.energy_records.append(copy.copy(self.energy))
                 self.beta_records.append(copy.copy(self.beta))
+                self.native_contacts_records.append(copy.copy(self.native_contacts))
                 if len(self.energy_records) > 30 and np.var(self.energy_records[-30:-1]) == 0:
                     return('The simulation has plateaued at a system energy of {}'.format(self.energy))
             if step%(n_mcmc/10) == 0:
@@ -676,15 +678,31 @@ class lattice():
     def energy_variation_graph(self):
         n_total = len(self.energy_records)
         interval = self.n_mcmc/n_total
-
         x = [interval*i for i in range(n_total)]
-
         plt.figure(figsize=(12,6))
         plt.plot(x, self.energy_records, linestyle='solid', linewidth=2, markersize=0)
         plt.title('Variation of system energy over all MCMC steps')
         plt.xlabel('Number of MCMC steps')
         plt.ylabel('System Energy')
         plt.show()
+    
+    def native_contacts_over_time(self):
+        n_total = len(self.native_contacts)
+        interval = self.n_mcmc/n_total
+        x = [interval*i for i in range(n_total)]
+        plt.figure(figsize=(12,6))
+        plt.plot(x, self.native_contacts, linestyle='solid', linewidth=2, markersize=0)
+        plt.title('Variation of Native Contacts over all MCMC steps')
+        plt.xlabel('Number of MCMC steps')
+        plt.ylabel('Number of Native Contacts')
+        plt.show()
+        
+    def native_contacts_per_beta(self):
+        df = pd.DataFrame()
+        df['beta'] = self.beta_records
+        df['nc'] = [1*(i>24) for i in self.native_contacts_records]
+        new = df.groupby('beta').agg('sum')
+        return new
 
     def animate(self):
         def make_figure(i):
