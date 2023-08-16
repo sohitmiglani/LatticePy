@@ -19,13 +19,13 @@ pip3 install git+https://github.com/sohitmiglani/LatticePy#egg=LatticePy
 
 ## Tutorial
 
-### 1. Import the package and initialize the lattice. You can customize the bounds of the lattice, the compactness energy, the beta (1/Temperature), and the lattice type.
+### - Import the package and initialize the lattice. You can customize the bounds of the lattice, the compactness energy, the beta (1/Temperature), and the lattice type.
 ```python
 from LatticePy import lattice
 mylattice = lattice(bound=50, E_c=1.5, beta=0, lattice_type='simple_cubic')
 ```
 
-### 2. Add your polymer
+### - Add your polymer
 
 - By a list of polarities
 ```python
@@ -39,7 +39,7 @@ mylattice.add_polymer_randomly(polymer, n_polymers=1) # to add it in a random fa
 sequence = 'MTKSHSEEVIVPEFNSSAKELPRPLAEKCPSIIKKFISAYDAKPDFVARSPGRVNLIGEH'
 mylattice.add_protein(sequence, type='straight', n_polymers=1)
 ```
-### 3. Simulate your polymers with annealing
+### - Simulate your polymers with annealing
 
 Change the parameters as you see fit
 ```python
@@ -52,22 +52,23 @@ mylattice.simulate(n_mcmc=200000,
                    beta_interval=0.05)
 ```
 
-### 4. Visualize the energy variation over all the MCMC steps
+### - Visualize the energy variation over all the MCMC steps
 
 ```python
-mylattice.energy_variation_graph()()
+mylattice.energy_variation_graph()
 ```
 ![](static/energy_variation_graph.png)
 
-### 5. Visualize in an interactive 3-D lattice
+### - Visualize in an interactive 3-D lattice
 
 ```python
 mylattice.visualize()
 ```
 
-You can see the interactive 3-D lattice for this run <a target='_blank' href='https://www.sohitmiglani.com/LatticePy_figure'>here.<a/>
+You can see the interactive 3-D lattice for this run <a href="https://www.sohitmiglani.com/LatticePy_figure" 
+                                                        target="_blank" rel="noopener noreferrer">here.<a/>
 
-### 6. Get important statistics
+### - Get important statistics
 
 ```python
 mylattice.native_contacts
