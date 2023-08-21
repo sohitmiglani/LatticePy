@@ -30,8 +30,8 @@ mylattice = lattice(bound=50, E_c=1.5, beta=0, lattice_type='simple_cubic')
 - By a list of polarities
 ```python
 polymer = [-1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, 1, 1, 1, -1, 1, -1, 1, -1, 1, 1, 1, -1, -1]
-mylattice.add_polymer_straight(polymer, n_polymers=1) # to add it in a straight line
-mylattice.add_polymer_randomly(polymer, n_polymers=1) # to add it in a random fashion which may cause knots
+mylattice.add_polymer(polymer, n_polymers=1, placement='straight') # to add it in a straight line
+mylattice.add_polymer(polymer, n_polymers=1, placement='randomly') # to add it in a random fashion which may cause knots
 ```
 
 - By sequence

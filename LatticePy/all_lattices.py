@@ -42,6 +42,8 @@ class lattice():
         self.intermediate_stability = False
         self.n_polymers = 0
         self.last_move = 'none'
+        self.plateau_time = 0
+        self.plateaued = False
         
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
@@ -77,8 +79,9 @@ class lattice():
                         neighbor_rev[i] += -1
                         neighbors.append(neighbor)
                         neighbors.append(neighbor_rev)
-                    neighbors = [neighbor for neighbor in neighbors if self.space[str(neighbor)].polarity != 0 and neighbor not in [aa.next, aa.previous] and \
-                                        (str(aa.coordinates), str(neighbor)) not in original_connections.edges ]
+                    neighbors = [neighbor for neighbor in neighbors if self.space[str(neighbor)].polarity != 0 and
+                                 str(neighbor) in self.space and neighbor not in [aa.next, aa.previous] and
+                                 (str(aa.coordinates), str(neighbor)) not in original_connections.edges ]
                     for neighbor in neighbors:
                         energy += self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity]
                         original_connections.add_edge(str(aa.coordinates), str(neighbor))
@@ -119,8 +122,9 @@ class lattice():
             else:
                 exclude = originals
 
-            neighbors = [neighbor for neighbor in neighbors if self.space[str(neighbor)].polarity != 0 and str(neighbor) not in exclude \
-                                     and (str(aa), str(neighbor)) not in original_connections.edges]
+            neighbors = [neighbor for neighbor in neighbors if self.space[str(neighbor)].polarity != 0\
+                         and str(neighbor) in self.space and str(neighbor) not in exclude \
+                         and (str(aa), str(neighbor)) not in original_connections.edges]
             for neighbor in neighbors:
                 original_energy += self.bond_energies[self.space[aa].polarity][self.space[str(neighbor)].polarity]
                 original_connections.add_edge(str(aa),str(neighbor))
@@ -151,8 +155,9 @@ class lattice():
             else:
                 exclude = non_existing + replacements
 
-            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in exclude and (str(aa), str(neighbor)) not in new_connections.edges \
-                                and self.space[str(neighbor)].polarity != 0]
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in exclude \
+                         and str(neighbor) in self.space and (str(aa), str(neighbor)) not in new_connections.edges \
+                         and self.space[str(neighbor)].polarity != 0]
             for neighbor in neighbors:
                 new_energy += self.bond_energies[self.space[original].polarity][self.space[str(neighbor)].polarity]
                 new_connections.add_edge(str(aa),str(neighbor))
@@ -167,7 +172,7 @@ class lattice():
         else:
             return False
 
-    def add_protein(self, sequence=None, type='straight', n_polymers=1):
+    def add_protein(self, sequence=None, placement='straight', n_polymers=1):
         polymer = []
 
         for aa in list(sequence):
@@ -178,117 +183,74 @@ class lattice():
             else:
                 raise InputError('Unrecognized amino acid in sequence: {}'.format(aa)) # noqa: F821
 
-        if type == 'straight':
-            self.add_polymer_straight(polymer, n_polymers=n_polymers)
-        elif type == 'random':
-            self.add_polymer_randomly(polymer, n_polymers=n_polymers)
+        if placement in ['straight','random']:
+            self.add_polymer(polymer, n_polymers=n_polymers, placement=placement)
         else:
             raise InputError('Unrecognized type of polymer placement: {}'.format(type)) # noqa: F821
             
-    def add_polymer_straight(self, polymer, n_polymers=1):
+    def add_polymer(self, polymer, n_polymers=1, placement='straight'):
         length = len(polymer)
-        x = system_random.randint(-self.bound+length+1, self.bound-length-1)
-        y = system_random.randint(-self.bound+length+1, self.bound-length-1)
-        z = system_random.randint(-self.bound+length+1, self.bound-length-1)
         polymers_placed = 0
-        axis = 0
-        direction = 0
 
         while polymers_placed < n_polymers:
-            new_coords = [x,y,z]
             polymer_id = polymers_placed
             valid_path=False
+            new_coords = None
 
-            while polymers_placed>0 and valid_path is False:
+            if len(self.start) > 0:
                 new_coords = system_random.choice(list(self.start.keys()))
                 new_coords = [int(i) for i in new_coords.strip('][').split(', ')].copy()
                 axis_start = system_random.choice([0,1,2])
                 change = system_random.choice([1,2])
                 new_coords[axis_start] += system_random.choice([+change, -change])
-                if str(new_coords) not in self.start.keys() and self.space[str(new_coords)].polarity == 0:
-                    all_polarities = 0
+            else:
+                x = system_random.randint(-self.bound+length+1, self.bound-length-1)
+                y = system_random.randint(-self.bound+length+1, self.bound-length-1)
+                z = system_random.randint(-self.bound+length+1, self.bound-length-1)
+                new_coords = [x, y, z]
+            
+            all_placements = []
+            valid_path=True
+            
+            if self.space[str(new_coords)].polarity == 0:
+                if placement == 'straight':
                     start = new_coords.copy()
-                    for i in range(length):
-                        new = start.copy()
-                        new[axis] += direction*i
-                        if str(new) not in self.space:
-                            valid_path = False
-                            break
-                        else:
-                            all_polarities += self.space[str(new)].polarity
-                        if i == length - 1 and all_polarities==0:
-                            valid_path=True
-
-            if polymers_placed == 0:
-                valid_path=False
-                while valid_path!= True:
                     axis = system_random.choice([0,1,2])
                     direction = system_random.choice([1, -1])
-                    all_polarities = 0
-                    start = new_coords.copy()
-                    for i in range(length):
+                    for i in range(1, length):
                         new = start.copy()
                         new[axis] += direction*i
-                        if str(new) not in self.space:
-                            valid_path = False
+                        if str(new) not in self.space or self.space[str(new)].polarity != 0:
                             break
-                        else:
-                            all_polarities += self.space[str(new)].polarity
-                        if i == length - 1 and all_polarities==0:
-                            valid_path=True
-
-            self.start[str(new_coords)] = polymer_id
-            self.space[str(new_coords)] = amino_acid(polymer[0],new_coords, polymer_id)
-            current_aa = self.space[str(new_coords)]
-        
-            for i in range(1, length):
-                next_coordinates = current_aa.coordinates.copy()
-                next_coordinates[axis] += direction
-                self.space[str(current_aa.coordinates)].next = next_coordinates
-                self.space[str(next_coordinates)] = amino_acid(polymer[i], next_coordinates, polymer_id)
-                self.space[str(next_coordinates)].previous = current_aa.coordinates.copy()
-                current_aa = self.space[str(next_coordinates)]
-            polymers_placed += 1
-            self.length_of_polymer = length
-            self.last[str(next_coordinates)] = 1
-            self.update_system_energy()
-            self.n_polymers += 1
-
-    def add_polymer_randomly(self, polymer):
-        length = len(polymer)
-        polymer_id = len(self.last.keys())
-        x = system_random.randint(-self.bound+length, self.bound-length)
-        y = system_random.randint(-self.bound+length, self.bound-length)
-        z = system_random.randint(-self.bound+length, self.bound-length)
-        
-        while True:
-            if self.space[str([x, y, z])].polarity == 0:
-                self.start[str([x, y, z])] = 1
-                break
-            else:
-                x = system_random.randint(-self.bound+length, self.bound-length)
-                y = system_random.randint(-self.bound+length, self.bound-length)
-                z = system_random.randint(-self.bound+length, self.bound-length)
-
-        self.space[str([x, y, z])] = amino_acid(polymer[0], [x, y, z], polymer_id)
-        current_a = self.space[str([x, y, z])]
-
-        for i in range(1, length):
-            coordinates = current_a.coordinates
-            while True:
-                next_coordinates = coordinates.copy()
-                axis = system_random.randint(0,2)
-                next_coordinates[axis] += system_random.randint(-1,1)
-                if self.space[str(next_coordinates)].polarity == 0:
-                    break
-            self.space[str(coordinates)].next = next_coordinates
-            self.space[str(next_coordinates)] = amino_acid(polymer[i], next_coordinates, polymer_id)
-            self.space[str(next_coordinates)].previous = coordinates
-            current_a = self.space[str(next_coordinates)]
-
-        self.last[str(next_coordinates)] = 1
-        self.update_system_energy()
-        self.n_polymers += 1
+                        all_placements.append(new.copy())
+                elif placement == 'randomly':
+                    coordinates = new_coords.copy()
+                    for i in range(length-1):
+                        tries = 0 
+                        while True and tries < 6:
+                            tries += 1
+                            next_coordinates = coordinates.copy()
+                            axis = system_random.randint(0,2)
+                            next_coordinates[axis] += system_random.randint(-1,1)
+                            if self.space[str(next_coordinates)].polarity == 0 and next_coordinates not in all_placements:
+                                all_placements.append(next_coordinates.copy())
+                                break
+                        coordinates = next_coordinates.copy()
+            if len(all_placements) == length-1:
+                self.start[str(new_coords)] = len(self.start)
+                self.space[str(new_coords)] = amino_acid(polymer[0],new_coords, polymer_id)
+                current_aa = self.space[str(new_coords)]
+                for i in range(length-1):
+                    next_coordinates = all_placements[i]
+                    self.space[str(current_aa.coordinates)].next = next_coordinates
+                    self.space[str(next_coordinates)] = amino_acid(polymer[i], next_coordinates, polymer_id)
+                    self.space[str(next_coordinates)].previous = current_aa.coordinates.copy()
+                    current_aa = self.space[str(next_coordinates)]
+                polymers_placed += 1
+                self.length_of_polymer = length
+                self.last[str(next_coordinates)] = 1
+                self.update_system_energy()
+                self.n_polymers += 1
 
     def move_chain(self, originals, replacements, inflection_point, start_or_end):
         deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
@@ -668,8 +630,9 @@ class lattice():
                 self.energy_records.append(copy.copy(self.energy))
                 self.beta_records.append(copy.copy(self.beta))
                 self.native_contacts_records.append(copy.copy(self.native_contacts))
-                if len(self.energy_records) > 30 and np.var(self.energy_records[-30:-1]) == 0:
-                    return('The simulation has plateaued at a system energy of {}'.format(self.energy))
+                if not self.plateaued and len(self.energy_records) > 20 and np.var(self.energy_records[-30:-1]) < 5:
+                    self.plateau_time = copy.copy(self.n_mcmc)
+                    self.plateaued = True
             if step%(n_mcmc/10) == 0:
                 print('Completion: {}%'.format(step*100/n_mcmc))
                 sys.stdout.flush()
