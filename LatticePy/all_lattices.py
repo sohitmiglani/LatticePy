@@ -42,6 +42,8 @@ class lattice():
         self.intermediate_stability = False
         self.n_polymers = 0
         self.last_move = 'none'
+        self.plateau_time = 0
+        self.plateaued = False
         
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
@@ -154,7 +156,7 @@ class lattice():
                 exclude = non_existing + replacements
 
             neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in exclude \
-                         and neighbor in self.space and (str(aa), str(neighbor)) not in new_connections.edges \
+                         and str(neighbor) in self.space and (str(aa), str(neighbor)) not in new_connections.edges \
                          and self.space[str(neighbor)].polarity != 0]
             for neighbor in neighbors:
                 new_energy += self.bond_energies[self.space[original].polarity][self.space[str(neighbor)].polarity]
@@ -628,8 +630,9 @@ class lattice():
                 self.energy_records.append(copy.copy(self.energy))
                 self.beta_records.append(copy.copy(self.beta))
                 self.native_contacts_records.append(copy.copy(self.native_contacts))
-                if len(self.energy_records) > 30 and np.var(self.energy_records[-30:-1]) == 0:
-                    return('The simulation has plateaued at a system energy of {}'.format(self.energy))
+                if not self.plateaued and len(self.energy_records) > 20 and np.var(self.energy_records[-30:-1]) < 5:
+                    self.plateau_time = copy.copy(self.n_mcmc)
+                    self.plateaued = True
             if step%(n_mcmc/10) == 0:
                 print('Completion: {}%'.format(step*100/n_mcmc))
                 sys.stdout.flush()
