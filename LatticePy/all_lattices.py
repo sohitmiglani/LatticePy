@@ -79,8 +79,8 @@ class lattice():
                         neighbor_rev[i] += -1
                         neighbors.append(neighbor)
                         neighbors.append(neighbor_rev)
-                    neighbors = [neighbor for neighbor in neighbors if self.space[str(neighbor)].polarity != 0 and
-                                 str(neighbor) in self.space and neighbor not in [aa.next, aa.previous] and
+                    neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space and
+                                 self.space[str(neighbor)].polarity != 0 and neighbor not in [aa.next, aa.previous] and
                                  (str(aa.coordinates), str(neighbor)) not in original_connections.edges ]
                     for neighbor in neighbors:
                         energy += self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity]
@@ -122,8 +122,8 @@ class lattice():
             else:
                 exclude = originals
 
-            neighbors = [neighbor for neighbor in neighbors if self.space[str(neighbor)].polarity != 0\
-                         and str(neighbor) in self.space and str(neighbor) not in exclude \
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space \
+                         and self.space[str(neighbor)].polarity != 0 and str(neighbor) not in exclude \
                          and (str(aa), str(neighbor)) not in original_connections.edges]
             for neighbor in neighbors:
                 original_energy += self.bond_energies[self.space[aa].polarity][self.space[str(neighbor)].polarity]
@@ -209,7 +209,7 @@ class lattice():
                 z = system_random.randint(-self.bound+length+1, self.bound-length-1)
                 new_coords = [x, y, z]
             
-            all_placements = []
+            all_placements = [] 
             valid_path=True
             
             if self.space[str(new_coords)].polarity == 0:
@@ -232,7 +232,7 @@ class lattice():
                             next_coordinates = coordinates.copy()
                             axis = system_random.randint(0,2)
                             next_coordinates[axis] += system_random.randint(-1,1)
-                            if self.space[str(next_coordinates)].polarity == 0 and next_coordinates not in all_placements:
+                            if str(next_coordinates) in self.space and self.space[str(next_coordinates)].polarity == 0 and next_coordinates not in all_placements:
                                 all_placements.append(next_coordinates.copy())
                                 break
                         coordinates = next_coordinates.copy()
@@ -277,7 +277,7 @@ class lattice():
                     if original_aa.next is not None and len(replacements) > 1 and aa_step < len(originals)-1:
                         original_aa.next = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
                 all_objects.append(copy.copy(original_aa))
-            
+                
             for aa_step in range(len(originals)):
                 original = originals[aa_step]
                 original_int = [int(i) for i in original.strip('][').split(', ')].copy()
@@ -322,6 +322,12 @@ class lattice():
             if start.coordinates is None:
                 print(i)
                 sys.exit('coordinates are none')
+            if i == 0 and start.previous is not None:
+                print(start.coordinates)
+                sys.exit('wrong previous of starting point')
+            if i == 26 and start.next is not None:
+                print(start.coordinates)
+                sys.exit('wrong next of end point')
             records.append(start.coordinates)
             i+= 1
             next_coordinate = copy.copy(start.next)
@@ -343,6 +349,7 @@ class lattice():
                 sys.exit('invalid neighbors')
             
             start = self.space[str(next_coordinate)]
+        self.records = records
         return True
 
     def end_move(self):
@@ -351,11 +358,9 @@ class lattice():
         coordinates = system_random.choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
         coordinates = coordinates.strip('][').split(', ')
         coordinates = [int(i) for i in coordinates]
-        if abs(coordinates[0]) >= self.bound-2 or abs(coordinates[1]) >= self.bound-2 or abs(coordinates[2])  >= self.bound-2:
-            return False
         current_aa = copy.copy(self.space[str(coordinates)])
-        current_polarity = current_aa.polarity
-        next_aa_polarity = copy.copy(self.space[str(coordinates)].polarity)
+        current_polarity = copy.copy(current_aa.polarity)
+        next_aa_polarity = copy.copy(current_polarity)
         next_coordinates = None
         tries = 0
         back = []
@@ -376,9 +381,15 @@ class lattice():
             direction = system_random.choice([1, -1])
             next_coordinates[next_axis] += direction
             if str(next_coordinates) not in self.space:
-                continue
+                if tries == 5:
+                    return False
+                else:
+                    continue
+            next_aa_polarity = self.space[str(next_coordinates)].polarity
+    
         if self.space[str(next_coordinates)].polarity != 0:
             return False
+
         self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
         self.last_move = 'end_move'
 
@@ -424,7 +435,7 @@ class lattice():
                     second_try = second_rep.copy()
                     first_try[axis_of_replacement] += direction
                     second_try[axis_of_replacement] += direction
-                    if self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
+                    if str(first_try) in self.space and str(second_try) in self.space and self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
                         if self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], third_coordinates, 0):
                             self.last_move = 'crankshaft'
                             return True
@@ -439,8 +450,6 @@ class lattice():
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
         coordinates = coordinates.strip('][').split(', ')
         coordinates = [int(i) for i in coordinates]
-        if abs(coordinates[0]) >= self.bound-2 or abs(coordinates[1]) >= self.bound-2 or abs(coordinates[2])  >= self.bound-2:
-            return False
         current_aa = self.space[str(coordinates)]
         if start_or_end == 0:
             next_coordinates = current_aa.next.copy()
@@ -469,10 +478,11 @@ class lattice():
             first_rep = coordinates.copy()
             first_rep[axis] += first_direction
             first_rep[next_axis] += next_direction
-            if self.space[str(first_rep)].polarity == 0 and self.space[str(second_rep)].polarity == 0:
-                break
-        if self.space[str(first_rep)].polarity != 0 or self.space[str(second_rep)].polarity != 0:
-            return False
+            if str(first_rep) in self.space and str(second_rep) in self.space:
+                if self.space[str(first_rep)].polarity == 0 and self.space[str(second_rep)].polarity == 0:
+                    break
+            if tries == 5:
+                return False
         originals = [str(next_coordinates), str(coordinates)]
         replacements = [str(second_rep), str(first_rep)]
         self.move_chain(originals, replacements, third, start_or_end)
@@ -484,10 +494,6 @@ class lattice():
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
         coordinates = coordinates.strip('][').split(', ')
         coordinates = [int(i) for i in coordinates]
-
-        if abs(coordinates[0]) >= self.bound-5 or abs(coordinates[1]) >= self.bound-5 or abs(coordinates[2])  >= self.bound-5:
-            return False
-
         steps = system_random.randint(2, self.length_of_polymer-2)
         all_selections = []
 
@@ -510,10 +516,10 @@ class lattice():
             tries += 1
             if start_or_end == 0:
                 first_aa = self.space[str(inflection_point)].previous.copy()
-                next_aa = copy.deepcopy(self.space[str(self.space[str(inflection_point)].previous)])
+                original = first_aa.copy()
             else:
                 first_aa = self.space[str(inflection_point)].next.copy()
-                next_aa = copy.deepcopy(self.space[str(self.space[str(inflection_point)].next)])
+                original = first_aa.copy()
 
             first_axis = None
             first_direction = 0
@@ -530,31 +536,34 @@ class lattice():
             replacements = {}
 
             while True:
-                to_be_replaced[str(next_aa.coordinates.copy())] = 1
-                to_be_replaced_list.append(next_aa.coordinates.copy())
+                to_be_replaced[str(original)] = 1
+                to_be_replaced_list.append(original)
 
                 if start_or_end == 0:
-                    if next_aa.previous is None:
+                    if self.space[str(original)].previous is None:
                         break
-                    next_aa = self.space[str(next_aa.previous)]
+                    original = self.space[str(original)].previous.copy()
                 else:
-                    if next_aa.next is None:
+                    if self.space[str(original)].next is None:
                         break
-                    next_aa = self.space[str(next_aa.next)]
+                    original = self.space[str(original)].next.copy()
 
             valid_path = True
             i = 0
             while valid_path and i < len(to_be_replaced.keys()):
                 original = to_be_replaced_list[i].copy()
-                new_position = to_be_replaced_list[i].copy()
+                new_position = original.copy()
                 new_position[first_axis] += first_direction
                 new_position[next_axis] += next_direction
-                next_aa = self.space[str(new_position)]
-                if next_aa.polarity != 0 and str(new_position) not in to_be_replaced:
+                if str(new_position) not in self.space:
                     valid_path = False
                 else:
-                    replacements[str(new_position.copy())] = 1
-                    i += 1
+                    next_aa = self.space[str(new_position)]
+                    if next_aa.polarity != 0 and str(new_position) not in to_be_replaced:
+                        valid_path = False
+                    else:
+                        replacements[str(new_position.copy())] = 1
+                        i += 1
 
         if not valid_path:
             return False
@@ -568,13 +577,13 @@ class lattice():
 
     def corner_flip(self):
         done = False
-        tries = 5
+        tries = 0
         start=system_random.choice(list(self.start.keys()))
         center_coordinates = self.space[start].next.copy()
         replacement = None
 
         while not done and center_coordinates is not None and tries < 5:
-            tries += 5
+            tries += 1
             before = self.space[str(center_coordinates)].previous
             after = self.space[str(center_coordinates)].next
 
@@ -599,11 +608,12 @@ class lattice():
                 replacement = center_coordinates.copy()
                 replacement[before_axis] += first_direction
                 replacement[next_axis] += next_direction
-                if self.space[str(replacement)].polarity == 0:
-                    if self.move_chain([str(center_coordinates)], [str(center_coordinates)], before, 0):
-                        self.last_move = 'flip'
-                        return True    
-                    done = True
+                if str(replacement) in self.space:
+                    if self.space[str(replacement)].polarity == 0:
+                        if self.move_chain([str(center_coordinates)], [str(replacement)], after, 0):
+                            self.last_move = 'flip'
+                            return True    
+                        done = True
                 else:
                     center_coordinates = self.space[str(center_coordinates)].next
 
