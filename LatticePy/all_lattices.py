@@ -28,23 +28,21 @@ class lattice():
         self.bond_energies = dict()
         self.bond_energies[1] = {}
         self.bond_energies[-1] = {}
+        self.native_contacts = 0
+        self.non_covalent_hydrophobic_contacts = 0
         self.beta = beta
+        self.n_mcmc = 0
         self.length_of_polymer = 0
         self.energy_records = []
         self.beta_records = []
         self.native_contacts_records = []
+        self.nchc_records = []
+        self.move_records = []
+        self.acceptance_records = []
         self.records = []
-        self.current_move = None
-        self.native_contacts = 0
-        self.non_covalent_hydrophobic_contacts = 0
-        self.n_mcmc = 0
-        self.stability = False
-        self.intermediate_stability = False
         self.n_polymers = 0
-        self.last_move = 'none'
         self.plateau_time = 0
         self.plateaued = False
-        
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
         for i in range(3):
@@ -256,6 +254,7 @@ class lattice():
         deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
         self.validate_chain()
         if self.move_success(deltaE):
+            self.acceptance_records.append(1)
             self.energy += deltaE
             self.native_contacts += deltaNC
             self.non_covalent_hydrophobic_contacts += deltaNCHC
@@ -308,6 +307,7 @@ class lattice():
             self.validate_chain()
             return True
         else:
+            self.acceptance_records.append(0)
             return False
 
     def validate_chain(self):
@@ -349,10 +349,10 @@ class lattice():
                 sys.exit('invalid neighbors')
             
             start = self.space[str(next_coordinate)]
-        self.records = records
         return True
 
     def end_move(self):
+        self.move_records.append('end_move')
         start_or_end=system_random.choice([0,1])
         deltaE = 0
         coordinates = system_random.choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
@@ -382,18 +382,20 @@ class lattice():
             next_coordinates[next_axis] += direction
             if str(next_coordinates) not in self.space:
                 if tries == 5:
+                    self.acceptance_records.append(0)
                     return False
                 else:
                     continue
             next_aa_polarity = self.space[str(next_coordinates)].polarity
     
         if self.space[str(next_coordinates)].polarity != 0:
+            self.acceptance_records.append(0)
             return False
 
         self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
-        self.last_move = 'end_move'
 
     def crankshaft_move(self):
+        self.move_records.append('crankshaft')
         coordinates = system_random.choice(list(self.start.keys()))
         aa = self.space[coordinates]
         tries = 0
@@ -437,13 +439,16 @@ class lattice():
                     second_try[axis_of_replacement] += direction
                     if str(first_try) in self.space and str(second_try) in self.space and self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
                         if self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], third_coordinates, 0):
-                            self.last_move = 'crankshaft'
                             return True
+                        else:
+                            return False
                     else:
                         continue
             aa = self.space[str(aa.next.copy())]
+        self.acceptance_records.append(0)
 
     def corner_move(self):
+        self.move_records.append('corner_move')
         polymer_id=system_random.choice(range(len(self.start.keys())))
         start_or_end=system_random.choice([0,1])
         deltaE = 0
@@ -482,13 +487,14 @@ class lattice():
                 if self.space[str(first_rep)].polarity == 0 and self.space[str(second_rep)].polarity == 0:
                     break
             if tries == 5:
+                self.acceptance_records.append(0)
                 return False
         originals = [str(next_coordinates), str(coordinates)]
         replacements = [str(second_rep), str(first_rep)]
         self.move_chain(originals, replacements, third, start_or_end)
-        self.last_move = 'corner'
 
     def corner_move_anywhere(self):
+        self.move_records.append('corner_anywhere')
         polymer_id=system_random.choice(range(len(self.start.keys())))
         start_or_end=system_random.choice([0,1])
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
@@ -566,16 +572,20 @@ class lattice():
                         i += 1
 
         if not valid_path:
+            self.acceptance_records.append(0)
             return False
 
         if len(to_be_replaced_list) < 3:
+            self.acceptance_records.append(0)
             return False
 
-        if len(to_be_replaced.keys()) == len(replacements.keys()) and len(to_be_replaced.keys())>0:
+        if len(to_be_replaced.keys())>0:
             self.move_chain( list(to_be_replaced.keys()), list(replacements.keys()), inflection_point, start_or_end)
-            self.last_move = 'anywhere'
+        else:
+            self.acceptance_records.append(0)
 
     def corner_flip(self):
+        self.move_records.append('corner_flip')
         done = False
         tries = 0
         start=system_random.choice(list(self.start.keys()))
@@ -611,12 +621,13 @@ class lattice():
                 if str(replacement) in self.space:
                     if self.space[str(replacement)].polarity == 0:
                         if self.move_chain([str(center_coordinates)], [str(replacement)], after, 0):
-                            self.last_move = 'flip'
-                            return True    
-                        done = True
+                            return True
+                        else:
+                            return False
                 else:
                     center_coordinates = self.space[str(center_coordinates)].next
-
+        self.acceptance_records.append(0)
+        
     def reptation_move(self):
         return True
 
@@ -640,15 +651,19 @@ class lattice():
                 self.energy_records.append(copy.copy(self.energy))
                 self.beta_records.append(copy.copy(self.beta))
                 self.native_contacts_records.append(copy.copy(self.native_contacts))
-                if not self.plateaued and len(self.energy_records) > 20 and np.var(self.energy_records[-30:-1]) < 5:
+                self.nchc_records.append(copy.copy(self.non_covalent_hydrophobic_contacts))
+                if not self.plateaued and len(self.energy_records) > 30 and np.var(self.energy_records[-30:-1]) < 2:
                     self.plateau_time = copy.copy(self.n_mcmc)
                     self.plateaued = True
             if step%(n_mcmc/10) == 0:
                 print('Completion: {}%'.format(step*100/n_mcmc))
                 sys.stdout.flush()
+            
+            if len(self.acceptance_records) != self.n_mcmc:
+                sys.exit('extra acceptance records')
         print('Fully Completed and Validated.')
 
-    def energy_variation_graph(self):
+    def energy_variation_graph(self, savefigure=False, figure_name='LatticePy_energy.png'):
         n_total = len(self.energy_records)
         interval = self.n_mcmc/n_total
         x = [interval*i for i in range(n_total)]
@@ -657,25 +672,38 @@ class lattice():
         plt.title('Variation of system energy over all MCMC steps')
         plt.xlabel('Number of MCMC steps')
         plt.ylabel('System Energy')
-        plt.show()
+        if savefigure:
+            plt.savefig(figure_name, dpi=300, format='png')
+        else:
+            plt.show()
     
-    def native_contacts_over_time(self):
-        n_total = len(self.native_contacts)
+    def native_contacts_over_time(self, savefigure=False, figure_name='LatticePy_native_contacts.png'):
+        n_total = len(self.native_contacts_records)
         interval = self.n_mcmc/n_total
         x = [interval*i for i in range(n_total)]
         plt.figure(figsize=(12,6))
-        plt.plot(x, self.native_contacts, linestyle='solid', linewidth=2, markersize=0)
+        plt.plot(x, self.native_contacts_records, linestyle='solid', linewidth=2, markersize=0)
         plt.title('Variation of Native Contacts over all MCMC steps')
         plt.xlabel('Number of MCMC steps')
         plt.ylabel('Number of Native Contacts')
-        plt.show()
-        
-    def native_contacts_per_beta(self):
-        df = pd.DataFrame()
-        df['beta'] = self.beta_records
-        df['nc'] = [1*(i>24) for i in self.native_contacts_records]
-        new = df.groupby('beta').agg('sum')
-        return new
+        if savefigure:
+            plt.savefig(figure_name, dpi=300, format='png')
+        else:
+            plt.show()
+    
+    def nchc_over_time(self, savefigure=False, figure_name='LatticePy_nchc.png'):
+        n_total = len(self.nchc_records)
+        interval = self.n_mcmc/n_total
+        x = [interval*i for i in range(n_total)]
+        plt.figure(figsize=(12,6))
+        plt.plot(x, self.nchc_records, linestyle='solid', linewidth=2, markersize=0)
+        plt.title('Variation of NCHC Contacts over all MCMC steps')
+        plt.xlabel('Number of MCMC steps')
+        plt.ylabel('Number of Native Contacts')
+        if savefigure:
+            plt.savefig(figure_name, dpi=300, format='png')
+        else:
+            plt.show()
 
     def animate(self):
         def make_figure(i):
