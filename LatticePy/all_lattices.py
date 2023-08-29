@@ -24,7 +24,6 @@ class lattice():
         self.start = dict()
         self.last = dict()
         self.energy = 0
-        self.all_bonds = []
         self.bond_energies = dict()
         self.bond_energies[1] = {}
         self.bond_energies[-1] = {}
@@ -45,6 +44,7 @@ class lattice():
         self.plateaued = False
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
+        
         for i in range(3):
             self.bond_energies[bonds[2*i]][bonds[2*i+1]] = bond_energies[i]
             self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
