@@ -1,4 +1,5 @@
 from setuptools import setup, find_packages
+from LatticePy import __version__
 
 def parse_requirements(file):
     with open('requirements.txt', 'rb') as f:
@@ -7,13 +8,12 @@ def parse_requirements(file):
 requirements = parse_requirements("requirements.txt")
 print("REQUIREMENTS: ", requirements)
 
-VERSION = '0.1.0'
 DESCRIPTION = 'A package for simulating molecules on a lattice.'
 LONG_DESCRIPTION = 'A package that simulates multiple types of micromolecules such as proteins on a simple cubic or FCC lattice.'
 
 setup(
     name="LatticePy",
-    version=VERSION,
+    version=__version__,
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     author="Sohit Miglani",
