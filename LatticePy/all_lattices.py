@@ -17,8 +17,9 @@ system_random = random.SystemRandom()
 pio.renderers.default = 'iframe_connected'
 
 class lattice():
-    def __init__(self, bound, E_c, beta=0, lattice_type='simple_cubic'):
+    def __init__(self, bound, E_c, beta=0, lattice_type='simple_cubic', record_moves=False):
         self.lattice_type = lattice_type
+        self.record_moves = record_moves
         self.bound = bound
         self.space = dict()
         self.start = dict()
@@ -48,46 +49,37 @@ class lattice():
         for i in range(3):
             self.bond_energies[bonds[2*i]][bonds[2*i+1]] = bond_energies[i]
             self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
-        
-        for i in range(self.bound+1):
-            for j in range(self.bound+1):
-                for k in range(self.bound+1):
-                    self.space[str([i, j, k])] = amino_acid(0, [i, j, k])
-                    self.space[str([-i, -j, -k])] = amino_acid(0, [-i, -j, -k])
-                    self.space[str([-i, -j, k])] = amino_acid(0, [-i, -j, k])
-                    self.space[str([-i, j, -k])] = amino_acid(0, [-i, j, -k])
-                    self.space[str([i, -j, -k])] = amino_acid(0, [i, -j, -k])
-                    self.space[str([-i, j, k])] = amino_acid(0, [-i, j, k])
-                    self.space[str([i, -j, k])] = amino_acid(0, [i, -j, k])
-                    self.space[str([i, j, -k])] = amino_acid(0, [i, j, -k])  
-
+            
+    def find_valid_neighbors(self, aa):
+        if self.lattice_type == 'simple_cubic':
+            neighbors = []
+            for i in range(3):
+                neighbor = aa.coordinates.copy()
+                neighbor[i] += 1
+                neighbor_rev = aa.coordinates.copy()
+                neighbor_rev[i] += -1
+                neighbors.append(neighbor)
+                neighbors.append(neighbor_rev)
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space and str(neighbor) not in [str(aa.next),str(aa.previous)]]
+            return neighbors
+    
     def update_system_energy(self, nearest_neighbors=True):
         original_connections=nx.Graph()
         energy = 0
         hydrophobic_contacts = 0
         for last in list(self.last.keys()):
             aa = self.space[str(last)]
-            while aa.polarity != 0:
+            while True:
                 if nearest_neighbors:
-                    neighbors = []
-                    for i in range(3):
-                        neighbor = aa.coordinates.copy()
-                        neighbor[i] += 1
-                        neighbor_rev = aa.coordinates.copy()
-                        neighbor_rev[i] += -1
-                        neighbors.append(neighbor)
-                        neighbors.append(neighbor_rev)
-                    neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space and
-                                 self.space[str(neighbor)].polarity != 0 and neighbor not in [aa.next, aa.previous] and
-                                 (str(aa.coordinates), str(neighbor)) not in original_connections.edges ]
+                    neighbors = self.find_valid_neighbors(aa)
                     for neighbor in neighbors:
                         energy += self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity]
                         original_connections.add_edge(str(aa.coordinates), str(neighbor))
                         if aa.polarity == -1 and self.space[str(neighbor)].polarity == -1:
                             hydrophobic_contacts += 1
                 if aa.previous != None:
-                    next = self.space[str(aa.previous)]
-                    aa=next
+                    next_aa = self.space[str(aa.previous)]
+                    aa=next_aa
                 else:
                     break
         self.native_contacts = len(original_connections.edges)
@@ -99,34 +91,15 @@ class lattice():
         non_existing = [i for i in originals if i not in replacements]
         original_connections=nx.Graph()
         original_NCHC = 0
-        
         i  = 0
-        for aa in originals:
-            neighbors = []
-            for i in range(3):
-                neighbor_int = [int(i) for i in aa.strip('][').split(', ')].copy()
-                neighbor = neighbor_int.copy()
-                neighbor_rev = neighbor_int.copy()
-                neighbor[i] += 1
-                neighbor_rev[i] += -1
-                neighbors.append(neighbor)
-                neighbors.append(neighbor_rev)
-
-            if i == 0:
-                if start_or_end == 0:
-                    exclude = originals + [self.space[aa]].next 
-                else:
-                    exclude = originals + [self.space[aa]].previous
-            else:
-                exclude = originals
-
-            neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space \
-                         and self.space[str(neighbor)].polarity != 0 and str(neighbor) not in exclude \
-                         and (str(aa), str(neighbor)) not in original_connections.edges]
+        for coord in originals:
+            aa = self.space[coord]
+            neighbors = self.find_valid_neighbors(aa)
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in originals and (coord, str(neighbor)) not in original_connections.edges ]
             for neighbor in neighbors:
-                original_energy += self.bond_energies[self.space[aa].polarity][self.space[str(neighbor)].polarity]
-                original_connections.add_edge(str(aa),str(neighbor))
-                if self.space[aa].polarity == -1 and self.space[str(neighbor)].polarity == -1:
+                original_energy += self.bond_energies[self.space[str(aa.coordinates)].polarity][self.space[str(neighbor)].polarity]
+                original_connections.add_edge(str(aa.coordinates),str(neighbor))
+                if self.space[str(aa.coordinates)].polarity == -1 and self.space[str(neighbor)].polarity == -1:
                     original_NCHC += 1
             i += 1
 
@@ -135,30 +108,14 @@ class lattice():
         new_energy = 0
         i = 0
         for (original, aa) in zip(originals, replacements):
-            neighbors = []
-            for i in range(3):
-                neighbor_int = [int(i) for i in aa.strip('][').split(', ')].copy()
-                neighbor = neighbor_int.copy()
-                neighbor_rev = neighbor_int.copy()
-                neighbor[i] += 1
-                neighbor_rev[i] += -1
-                neighbors.append(neighbor)
-                neighbors.append(neighbor_rev)
-
-            if i == 0:
-                if start_or_end == 0:
-                    exclude = [self.space[str(originals[0])].next] + non_existing + replacements
-                else:
-                    exclude = [self.space[str(originals[0])].previous] + non_existing + replacements
-            else:
-                exclude = non_existing + replacements
-
-            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in exclude \
-                         and str(neighbor) in self.space and (str(aa), str(neighbor)) not in new_connections.edges \
-                         and self.space[str(neighbor)].polarity != 0]
+            new_object = amino_acid(0, [int(i) for i in aa.strip('][').split(', ')].copy() , None)
+            original_aa = self.space[original]
+            neighbors = self.find_valid_neighbors(new_object)
+            exclude = non_existing + replacements + [str(original_aa.previous), str(original_aa.next)]
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in exclude and (aa, str(neighbor)) not in new_connections.edges]
             for neighbor in neighbors:
                 new_energy += self.bond_energies[self.space[original].polarity][self.space[str(neighbor)].polarity]
-                new_connections.add_edge(str(aa),str(neighbor))
+                new_connections.add_edge(aa,str(neighbor))
                 if self.space[original].polarity == -1 and self.space[str(neighbor)].polarity == -1:
                     new_NCHC += 1
             i += 1
@@ -194,7 +151,6 @@ class lattice():
             polymer_id = polymers_placed
             valid_path=False
             new_coords = None
-
             if len(self.start) > 0:
                 new_coords = system_random.choice(list(self.start.keys()))
                 new_coords = [int(i) for i in new_coords.strip('][').split(', ')].copy()
@@ -210,27 +166,30 @@ class lattice():
             all_placements = [] 
             valid_path=True
             
-            if self.space[str(new_coords)].polarity == 0:
+            if str(new_coords) not in self.space:
                 if placement == 'straight':
                     start = new_coords.copy()
                     axis = system_random.choice([0,1,2])
                     direction = system_random.choice([1, -1])
                     for i in range(1, length):
-                        new = start.copy()
-                        new[axis] += direction*i
-                        if str(new) not in self.space or self.space[str(new)].polarity != 0:
-                            break
-                        all_placements.append(new.copy())
+                        tries = 0 
+                        while tries < 5:
+                            tries += 1
+                            new = start.copy()
+                            new[axis] += direction*i
+                            if str(new) not in self.space:
+                                all_placements.append(new.copy())
+                                break
                 elif placement == 'randomly':
                     coordinates = new_coords.copy()
                     for i in range(length-1):
                         tries = 0 
-                        while True and tries < 6:
+                        while tries < 5:
                             tries += 1
                             next_coordinates = coordinates.copy()
                             axis = system_random.randint(0,2)
                             next_coordinates[axis] += system_random.randint(-1,1)
-                            if str(next_coordinates) in self.space and self.space[str(next_coordinates)].polarity == 0 and next_coordinates not in all_placements:
+                            if str(next_coordinates) not in self.space and next_coordinates not in all_placements:
                                 all_placements.append(next_coordinates.copy())
                                 break
                         coordinates = next_coordinates.copy()
@@ -241,7 +200,7 @@ class lattice():
                 for i in range(length-1):
                     next_coordinates = all_placements[i]
                     self.space[str(current_aa.coordinates)].next = next_coordinates
-                    self.space[str(next_coordinates)] = amino_acid(polymer[i], next_coordinates, polymer_id)
+                    self.space[str(next_coordinates)] = amino_acid(polymer[i+1], next_coordinates, polymer_id)
                     self.space[str(next_coordinates)].previous = current_aa.coordinates.copy()
                     current_aa = self.space[str(next_coordinates)]
                 polymers_placed += 1
@@ -254,7 +213,6 @@ class lattice():
         deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
         self.validate_chain()
         if self.move_success(deltaE):
-            self.acceptance_records.append(1)
             self.energy += deltaE
             self.native_contacts += deltaNC
             self.non_covalent_hydrophobic_contacts += deltaNCHC
@@ -303,11 +261,14 @@ class lattice():
                             self.space[str(replacement_object.next)].previous = replacement_int
                 self.space[replacement] = replacement_object
                 if original not in replacements:
-                    self.space[original] = amino_acid(0, original_int)
+                    del self.space[original]
             self.validate_chain()
+            if self.record_moves:
+                self.acceptance_records.append(1)
             return True
         else:
-            self.acceptance_records.append(0)
+            if self.record_moves:
+                self.acceptance_records.append(0)
             return False
 
     def validate_chain(self):
@@ -352,26 +313,25 @@ class lattice():
         return True
 
     def end_move(self):
-        self.move_records.append('end_move')
+        if self.record_moves:
+            self.move_records.append('end_move')
         start_or_end=system_random.choice([0,1])
         deltaE = 0
         coordinates = system_random.choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
         coordinates = coordinates.strip('][').split(', ')
         coordinates = [int(i) for i in coordinates]
         current_aa = copy.copy(self.space[str(coordinates)])
-        current_polarity = copy.copy(current_aa.polarity)
-        next_aa_polarity = copy.copy(current_polarity)
         next_coordinates = None
         tries = 0
-        back = []
-        while next_aa_polarity != 0 and tries < 5:
+
+        while tries < 5:
             tries += 1
             next_coordinates = coordinates.copy()  
             back = None
-            if current_aa.next == None:
-                back = current_aa.previous.copy()
-            else:
+            if start_or_end == 0:
                 back = current_aa.next.copy()
+            else:
+                back = current_aa.previous.copy()
             axis = None
             for i in range(3):
                 if back[i] !=  next_coordinates[i]:
@@ -381,21 +341,14 @@ class lattice():
             direction = system_random.choice([1, -1])
             next_coordinates[next_axis] += direction
             if str(next_coordinates) not in self.space:
-                if tries == 5:
-                    self.acceptance_records.append(0)
-                    return False
-                else:
-                    continue
-            next_aa_polarity = self.space[str(next_coordinates)].polarity
-    
-        if self.space[str(next_coordinates)].polarity != 0:
+                return self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
+        
+        if self.record_moves:
             self.acceptance_records.append(0)
-            return False
-
-        self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
 
     def crankshaft_move(self):
-        self.move_records.append('crankshaft')
+        if self.record_moves:
+            self.move_records.append('crankshaft')
         coordinates = system_random.choice(list(self.start.keys()))
         aa = self.space[coordinates]
         tries = 0
@@ -437,18 +390,19 @@ class lattice():
                     second_try = second_rep.copy()
                     first_try[axis_of_replacement] += direction
                     second_try[axis_of_replacement] += direction
-                    if str(first_try) in self.space and str(second_try) in self.space and self.space[str(first_try)].polarity == 0 and  self.space[str(second_try)].polarity == 0:
-                        if self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], third_coordinates, 0):
-                            return True
-                        else:
-                            return False
+                    if str(first_try) not in self.space and str(second_try) not in self.space:
+                        return self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], third_coordinates, 0)
                     else:
                         continue
-            aa = self.space[str(aa.next.copy())]
-        self.acceptance_records.append(0)
+            if aa.next is not None:
+                aa = self.space[str(aa.next.copy())]
+
+        if self.record_moves:
+            self.acceptance_records.append(0)
 
     def corner_move(self):
-        self.move_records.append('corner_move')
+        if self.record_moves:
+            self.move_records.append('corner_move')
         polymer_id=system_random.choice(range(len(self.start.keys())))
         start_or_end=system_random.choice([0,1])
         deltaE = 0
@@ -483,23 +437,23 @@ class lattice():
             first_rep = coordinates.copy()
             first_rep[axis] += first_direction
             first_rep[next_axis] += next_direction
-            if str(first_rep) in self.space and str(second_rep) in self.space:
-                if self.space[str(first_rep)].polarity == 0 and self.space[str(second_rep)].polarity == 0:
-                    break
+            if str(first_rep) not in self.space and str(second_rep) not in self.space:
+                   break
             if tries == 5:
-                self.acceptance_records.append(0)
+                if self.record_moves:
+                    self.acceptance_records.append(0)
                 return False
         originals = [str(next_coordinates), str(coordinates)]
         replacements = [str(second_rep), str(first_rep)]
         self.move_chain(originals, replacements, third, start_or_end)
 
     def corner_move_anywhere(self):
-        self.move_records.append('corner_anywhere')
+        if self.record_moves:
+            self.move_records.append('corner_anywhere')
         polymer_id=system_random.choice(range(len(self.start.keys())))
         start_or_end=system_random.choice([0,1])
         coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
-        coordinates = coordinates.strip('][').split(', ')
-        coordinates = [int(i) for i in coordinates]
+        coordinates = [int(i) for i in coordinates.strip('][').split(', ')]
         steps = system_random.randint(2, self.length_of_polymer-2)
         all_selections = []
 
@@ -526,7 +480,7 @@ class lattice():
             else:
                 first_aa = self.space[str(inflection_point)].next.copy()
                 original = first_aa.copy()
-
+                
             first_axis = None
             first_direction = 0
             for i in range(3):
@@ -534,65 +488,61 @@ class lattice():
                     first_direction = inflection_point[i] - first_aa[i]
                     first_aa[i] = copy.copy(inflection_point[i])
                     first_axis = i
-            next_axis = system_random.choice([i for i in [0,1,2] if i != first_axis])
-            next_direction = system_random.choice([1, -1])
-            first_aa[next_axis] += next_direction
+            
+            new_tries = 0
+            next_axis = None
+            next_direction = None
+            while new_tries < 5:
+                new_tries += 1
+                next_axis = system_random.choice([i for i in [0,1,2] if i != first_axis])
+                next_direction = system_random.choice([1, -1])
+                first_aa[next_axis] += next_direction
+                if str(first_aa) not in self.space:
+                    break
+                    
             to_be_replaced = {}
             to_be_replaced_list = []
             replacements = {}
-
-            while True:
+            
+            while original is not None:
                 to_be_replaced[str(original)] = 1
                 to_be_replaced_list.append(original)
-
                 if start_or_end == 0:
-                    if self.space[str(original)].previous is None:
-                        break
-                    original = self.space[str(original)].previous.copy()
+                    original = copy.copy(self.space[str(original)].previous)
                 else:
-                    if self.space[str(original)].next is None:
-                        break
-                    original = self.space[str(original)].next.copy()
-
-            valid_path = True
+                    original = copy.copy(self.space[str(original)].next)
+            
             i = 0
-            while valid_path and i < len(to_be_replaced.keys()):
+            while i < len(to_be_replaced.keys()):
                 original = to_be_replaced_list[i].copy()
                 new_position = original.copy()
                 new_position[first_axis] += first_direction
                 new_position[next_axis] += next_direction
                 if str(new_position) not in self.space:
-                    valid_path = False
+                    replacements[str(new_position.copy())] = 1
+                    i += 1
+                    valid_path = True
                 else:
-                    next_aa = self.space[str(new_position)]
-                    if next_aa.polarity != 0 and str(new_position) not in to_be_replaced:
-                        valid_path = False
-                    else:
-                        replacements[str(new_position.copy())] = 1
-                        i += 1
+                    valid_path = False
+                    break
 
-        if not valid_path:
-            self.acceptance_records.append(0)
-            return False
-
-        if len(to_be_replaced_list) < 3:
-            self.acceptance_records.append(0)
-            return False
-
-        if len(to_be_replaced.keys())>0:
-            self.move_chain( list(to_be_replaced.keys()), list(replacements.keys()), inflection_point, start_or_end)
+        if valid_path:
+            return self.move_chain( list(to_be_replaced.keys()), list(replacements.keys()), inflection_point, start_or_end)
         else:
-            self.acceptance_records.append(0)
+            if self.record_moves:
+                self.acceptance_records.append(0)
+            return False
 
     def corner_flip(self):
-        self.move_records.append('corner_flip')
+        if self.record_moves:
+            self.move_records.append('corner_flip')
         done = False
         tries = 0
         start=system_random.choice(list(self.start.keys()))
         center_coordinates = self.space[start].next.copy()
         replacement = None
 
-        while not done and center_coordinates is not None and tries < 5:
+        while self.space[str(center_coordinates)].next is not None and tries < 5:
             tries += 1
             before = self.space[str(center_coordinates)].previous
             after = self.space[str(center_coordinates)].next
@@ -611,22 +561,15 @@ class lattice():
                     next_direction = after[j] - center_coordinates[j]
                     next_axis = j
 
-            if before_axis == next_axis:
-                center_coordinates = self.space[str(center_coordinates)].next
-                continue
-            else:
+            if before_axis != next_axis:
                 replacement = center_coordinates.copy()
                 replacement[before_axis] += first_direction
                 replacement[next_axis] += next_direction
-                if str(replacement) in self.space:
-                    if self.space[str(replacement)].polarity == 0:
-                        if self.move_chain([str(center_coordinates)], [str(replacement)], after, 0):
-                            return True
-                        else:
-                            return False
-                else:
-                    center_coordinates = self.space[str(center_coordinates)].next
-        self.acceptance_records.append(0)
+                if str(replacement) not in self.space:
+                    return self.move_chain([str(center_coordinates)], [str(replacement)], after, 0)
+            center_coordinates = self.space[str(center_coordinates)].next
+        if self.record_moves:
+            self.acceptance_records.append(0)
         
     def reptation_move(self):
         return True
@@ -659,12 +602,15 @@ class lattice():
                 print('Completion: {}%'.format(step*100/n_mcmc))
                 sys.stdout.flush()
             
-            if len(self.acceptance_records) != self.n_mcmc:
-                sys.exit('extra acceptance records')
+            if self.record_moves and len(self.acceptance_records) != self.n_mcmc:
+                raise ValueError('Recorded acceptance records are not equal to the number of MCMC steps')
         print('Fully Completed and Validated.')
 
     def energy_variation_graph(self, savefigure=False, figure_name='LatticePy_energy.png'):
         n_total = len(self.energy_records)
+        if n_total == 0:
+            raise RuntimeError('No energy values have been recorded so far. Please rerun the simulation with record_intervals = True in the simulate() function.')
+        
         interval = self.n_mcmc/n_total
         x = [interval*i for i in range(n_total)]
         plt.figure(figsize=(12,6))
