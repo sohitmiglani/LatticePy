@@ -4,7 +4,7 @@ A python package for MCMC simulations of folding and phase separation in biomole
 ## Installation
 
 ### Stable Release
-Run the following command in bash (Not on PyPi yet) :
+Run the following command in bash:
 
 ```bash
 pip3 install LatticePy
