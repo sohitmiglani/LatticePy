@@ -50,6 +50,9 @@ class lattice():
             self.bond_energies[bonds[2*i]][bonds[2*i+1]] = bond_energies[i]
             self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
             
+    def periodic_coordinate(self, coordinates):
+        return [coordinates[0]%31, coordinates[1]%31, coordinates[2]%31]
+                
     def find_valid_neighbors(self, aa):
         if self.lattice_type == 'simple_cubic':
             neighbors = []
@@ -60,6 +63,7 @@ class lattice():
                 neighbor_rev[i] += -1
                 neighbors.append(neighbor)
                 neighbors.append(neighbor_rev)
+            neighbors = [self.periodic_coordinate(neighbor) for neighbor in neighbors]
             neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space and str(neighbor) not in [str(aa.next),str(aa.previous)]]
             return neighbors
     
@@ -158,25 +162,27 @@ class lattice():
                 change = system_random.choice([1,2])
                 new_coords[axis_start] += system_random.choice([+change, -change])
             else:
-                x = system_random.randint(-self.bound+length+1, self.bound-length-1)
-                y = system_random.randint(-self.bound+length+1, self.bound-length-1)
-                z = system_random.randint(-self.bound+length+1, self.bound-length-1)
+                x = system_random.randint(0, self.bound)
+                y = system_random.randint(0, self.bound)
+                z = system_random.randint(0, self.bound)
                 new_coords = [x, y, z]
+            
+            new_coords = self.periodic_coordinate(new_coords)
             
             all_placements = [] 
             valid_path=True
             
             if str(new_coords) not in self.space:
                 if placement == 'straight':
-                    start = new_coords.copy()
                     axis = system_random.choice([0,1,2])
                     direction = system_random.choice([1, -1])
                     for i in range(1, length):
                         tries = 0 
                         while tries < 5:
                             tries += 1
-                            new = start.copy()
+                            new = new_coords.copy()
                             new[axis] += direction*i
+                            new = self.periodic_coordinate(new)
                             if str(new) not in self.space:
                                 all_placements.append(new.copy())
                                 break
@@ -189,6 +195,7 @@ class lattice():
                             next_coordinates = coordinates.copy()
                             axis = system_random.randint(0,2)
                             next_coordinates[axis] += system_random.randint(-1,1)
+                            next_coordinates = self.periodic_coordinate(next_coordinates)
                             if str(next_coordinates) not in self.space and next_coordinates not in all_placements:
                                 all_placements.append(next_coordinates.copy())
                                 break
@@ -272,54 +279,42 @@ class lattice():
             return False
 
     def validate_chain(self):
-        i = 0
-        start = self.space[list(self.start.keys())[0]]
-        records = []
-        while i < 27:
-            if start.polarity == 0:
-                print(i)
-                print(start.coordinates)
-                sys.exit('polarity problem')
-            if start.coordinates is None:
-                print(i)
-                sys.exit('coordinates are none')
-            if i == 0 and start.previous is not None:
-                print(start.coordinates)
-                sys.exit('wrong previous of starting point')
-            if i == 26 and start.next is not None:
-                print(start.coordinates)
-                sys.exit('wrong next of end point')
-            records.append(start.coordinates)
-            i+= 1
-            next_coordinate = copy.copy(start.next)
-            if next_coordinate is None:
-                if i==27:
-                    break
-                else:
-                    print(i)
-                    print(start.coordinates)
-                    sys.exit('broken chain in validation')
-            if next_coordinate in records:
-                print('\n')
-                print(records)
-                print(next_coordinate)
-                sys.exit('chain duplicated')
-            
-            if math.dist(start.coordinates, start.next) != 1:
-                print(start.coordinates, start.next)
-                sys.exit('invalid neighbors')
-            
-            start = self.space[str(next_coordinate)]
+        for start in list(self.start.keys()):
+            i = 0
+            records = []
+            start = self.space[start]
+            while i < 27:
+                if max(start.coordinates) > 30 or min(start.coordinates) < 0:
+                    raise RuntimeError('Periodic Boundary Conditions have been violated.')
+                records.append(start.coordinates)
+                i+= 1
+                next_coordinate = copy.copy(start.next)
+                if next_coordinate is None:
+                    if i==27:
+                        break
+                    else:
+                        print(i)
+                        print(start.coordinates)
+                        sys.exit('broken chain in validation')
+                if next_coordinate in records:
+                    print('\n')
+                    print(records)
+                    print(next_coordinate)
+                    sys.exit('chain duplicated')
+
+                if math.dist(start.coordinates, start.next) not in [1, 30]:
+                    print(start.coordinates, start.next)
+                    sys.exit('invalid neighbors')
+
+                start = self.space[str(next_coordinate)]
         return True
 
     def end_move(self):
         if self.record_moves:
             self.move_records.append('end_move')
         start_or_end=system_random.choice([0,1])
-        deltaE = 0
         coordinates = system_random.choice([ list(self.start.keys()), list(self.last.keys())][start_or_end])
-        coordinates = coordinates.strip('][').split(', ')
-        coordinates = [int(i) for i in coordinates]
+        coordinates = self.periodic_coordinate([int(i) for i in coordinates.strip('][').split(', ')])
         current_aa = copy.copy(self.space[str(coordinates)])
         next_coordinates = None
         tries = 0
@@ -340,6 +335,7 @@ class lattice():
             next_axis = system_random.choice([i for i in [0,1,2] if i != axis])
             direction = system_random.choice([1, -1])
             next_coordinates[next_axis] += direction
+            next_coordinates = self.periodic_coordinate(next_coordinates)
             if str(next_coordinates) not in self.space:
                 return self.move_chain([str(coordinates)], [str(next_coordinates)], back, start_or_end)
         
@@ -349,10 +345,10 @@ class lattice():
     def crankshaft_move(self):
         if self.record_moves:
             self.move_records.append('crankshaft')
-        coordinates = system_random.choice(list(self.start.keys()))
-        aa = self.space[coordinates]
+        aa = self.space[system_random.choice(list(self.start.keys()))]
         tries = 0
         while tries < self.length_of_polymer-3:
+            tries += 1
             axis_1 = None
             axis_2 = None
             axis_3 = None
@@ -362,34 +358,31 @@ class lattice():
             third_coordinates = self.space[str(second_coordinates)].next.copy()
             first_direction = None
             back_direction = None
-            tries += 1
-            
+
             for i in range(3):
                 if coordinates[i] != first_coordinates[i]:
                     first_direction = first_coordinates[i] - coordinates[i]
                     axis_1 = i
-            back_direction = None
             for j in range(3):
                 if second_coordinates[j] != third_coordinates[j]:
                     back_direction = third_coordinates[j] - second_coordinates[j]
                     axis_3 = j
-                    
             for k in range(3):
                 if first_coordinates[k] != second_coordinates[k]:
                     axis_2 = k
             
             if axis_1 == axis_3 and axis_1 != axis_2 and first_direction*back_direction == -1:     
-                axis_of_replacement = [i for i in [0,1,2] if i not in [axis_1, axis_2]][0]
-                first_rep = first_coordinates.copy()
-                second_rep = second_coordinates.copy()
-                first_rep[axis_1] += back_direction
-                second_rep[axis_1] += back_direction
-
+                axis_of_replacement = [i for i in [0,1,2] if i not in [axis_1, axis_2]][0]              
                 for direction in [1, -1]:
-                    first_try = first_rep.copy()
-                    second_try = second_rep.copy()
+                    first_try = first_coordinates.copy()
+                    second_try = second_coordinates.copy()
+                    first_try[axis_1] += back_direction
+                    second_try[axis_1] += back_direction
                     first_try[axis_of_replacement] += direction
                     second_try[axis_of_replacement] += direction
+                    first_try = self.periodic_coordinate(first_try)
+                    second_try = self.periodic_coordinate(second_try)
+                    
                     if str(first_try) not in self.space and str(second_try) not in self.space:
                         return self.move_chain([str(second_coordinates), str(first_coordinates)], [str(second_try), str(first_try)], third_coordinates, 0)
                     else:
@@ -406,9 +399,8 @@ class lattice():
         polymer_id=system_random.choice(range(len(self.start.keys())))
         start_or_end=system_random.choice([0,1])
         deltaE = 0
-        coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
-        coordinates = coordinates.strip('][').split(', ')
-        coordinates = [int(i) for i in coordinates]
+        coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id] 
+        coordinates = [int(i) for i in coordinates.strip('][').split(', ')]
         current_aa = self.space[str(coordinates)]
         if start_or_end == 0:
             next_coordinates = current_aa.next.copy()
@@ -417,7 +409,7 @@ class lattice():
         first_rep = coordinates.copy()
         second_rep = next_coordinates.copy()
         tries = 0
-        while True and tries < 5:
+        while tries < 5:
             tries += 1
             second_rep = next_coordinates.copy()
             if start_or_end == 0:
@@ -437,15 +429,19 @@ class lattice():
             first_rep = coordinates.copy()
             first_rep[axis] += first_direction
             first_rep[next_axis] += next_direction
+            
+            first_rep = self.periodic_coordinate(first_rep)
+            second_rep = self.periodic_coordinate(second_rep)
+            
             if str(first_rep) not in self.space and str(second_rep) not in self.space:
-                   break
-            if tries == 5:
-                if self.record_moves:
-                    self.acceptance_records.append(0)
-                return False
-        originals = [str(next_coordinates), str(coordinates)]
-        replacements = [str(second_rep), str(first_rep)]
-        self.move_chain(originals, replacements, third, start_or_end)
+                originals = [str(next_coordinates), str(coordinates)]
+                replacements = [str(second_rep), str(first_rep)]
+                return self.move_chain(originals, replacements, third, start_or_end)
+            
+        if tries == 5:
+            if self.record_moves:
+                self.acceptance_records.append(0)
+            return False
 
     def corner_move_anywhere(self):
         if self.record_moves:
@@ -518,6 +514,7 @@ class lattice():
                 new_position = original.copy()
                 new_position[first_axis] += first_direction
                 new_position[next_axis] += next_direction
+                new_position = self.periodic_coordinate(new_position)
                 if str(new_position) not in self.space:
                     replacements[str(new_position.copy())] = 1
                     i += 1
@@ -565,6 +562,7 @@ class lattice():
                 replacement = center_coordinates.copy()
                 replacement[before_axis] += first_direction
                 replacement[next_axis] += next_direction
+                replacement = self.periodic_coordinate(replacement)
                 if str(replacement) not in self.space:
                     return self.move_chain([str(center_coordinates)], [str(replacement)], after, 0)
             center_coordinates = self.space[str(center_coordinates)].next
