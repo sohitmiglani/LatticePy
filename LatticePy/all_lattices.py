@@ -51,7 +51,7 @@ class lattice():
             self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
             
     def periodic_coordinate(self, coordinates):
-        return [coordinates[0]%31, coordinates[1]%31, coordinates[2]%31]
+        return [coordinates[0]%(self.bound +1), coordinates[1]%(self.bound +1), coordinates[2]%(self.bound +1)]
                 
     def find_valid_neighbors(self, aa):
         if self.lattice_type == 'simple_cubic':
