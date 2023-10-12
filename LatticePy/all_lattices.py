@@ -51,7 +51,9 @@ class lattice():
             self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
             
     def periodic_coordinate(self, coordinates):
-        return [coordinates[0]%(self.bound +1), coordinates[1]%(self.bound +1), coordinates[2]%(self.bound +1)]
+        return [round(coordinates[0]%(self.bound +1)), 
+                round(coordinates[1]%(self.bound +1)), 
+                round(coordinates[2]%(self.bound +1))]
                 
     def find_valid_neighbors(self, aa):
         if self.lattice_type == 'simple_cubic':
@@ -64,7 +66,7 @@ class lattice():
                 neighbors.append(neighbor)
                 neighbors.append(neighbor_rev)
             neighbors = [self.periodic_coordinate(neighbor) for neighbor in neighbors]
-            neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space and str(neighbor) not in [str(aa.next),str(aa.previous)]]
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in [str(aa.next),str(aa.previous)]]
             return neighbors
     
     def update_system_energy(self, nearest_neighbors=True):
@@ -76,59 +78,181 @@ class lattice():
             while True:
                 if nearest_neighbors:
                     neighbors = self.find_valid_neighbors(aa)
+                    neighbors = [neighbor for neighbor in neighbors if (str(aa.coordinates), str(neighbor)) not in original_connections.edges and str(neighbor) in self.space]
                     for neighbor in neighbors:
-                        energy += self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity]
+                        energy += round(self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity],2)
                         original_connections.add_edge(str(aa.coordinates), str(neighbor))
                         if aa.polarity == -1 and self.space[str(neighbor)].polarity == -1:
                             hydrophobic_contacts += 1
                 if aa.previous != None:
-                    next_aa = self.space[str(aa.previous)]
-                    aa=next_aa
+                    aa = self.space[str(aa.previous)]
                 else:
                     break
         self.native_contacts = len(original_connections.edges)
         self.non_covalent_hydrophobic_contacts = hydrophobic_contacts
-        self.energy = energy
+        self.energy = round(energy,2)
 
     def find_subsystem_energy(self, originals, replacements, start_or_end):
         original_energy = 0
         non_existing = [i for i in originals if i not in replacements]
         original_connections=nx.Graph()
         original_NCHC = 0
-        i  = 0
+
         for coord in originals:
             aa = self.space[coord]
             neighbors = self.find_valid_neighbors(aa)
-            neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in originals and (coord, str(neighbor)) not in original_connections.edges ]
+            neighbors = [neighbor for neighbor in neighbors if str(neighbor) in self.space and (coord, str(neighbor)) not in original_connections.edges ]
             for neighbor in neighbors:
                 original_energy += self.bond_energies[self.space[str(aa.coordinates)].polarity][self.space[str(neighbor)].polarity]
                 original_connections.add_edge(str(aa.coordinates),str(neighbor))
                 if self.space[str(aa.coordinates)].polarity == -1 and self.space[str(neighbor)].polarity == -1:
                     original_NCHC += 1
-            i += 1
-
+        
         new_connections=nx.Graph()
         new_NCHC = 0
         new_energy = 0
+        
         i = 0
         for (original, aa) in zip(originals, replacements):
-            new_object = amino_acid(0, [int(i) for i in aa.strip('][').split(', ')].copy() , None)
-            original_aa = self.space[original]
-            neighbors = self.find_valid_neighbors(new_object)
-            exclude = non_existing + replacements + [str(original_aa.previous), str(original_aa.next)]
+            original_aa = copy.copy(self.space[original])
+            original_aa.coordinates = [int(i) for i in aa.strip('][').split(', ')].copy()
+            neighbors = self.find_valid_neighbors(original_aa)
+            exclude = copy.copy(non_existing)
+            
+            if len(originals) > 1:
+                if i == 0:
+                    exclude.append(replacements[i+1])
+                elif i == len(originals) - 1:
+                    exclude.append(replacements[i-1])
+                else:
+                    exclude.append(replacements[i+1])
+                    exclude.append(replacements[i-1])
+            
             neighbors = [neighbor for neighbor in neighbors if str(neighbor) not in exclude and (aa, str(neighbor)) not in new_connections.edges]
             for neighbor in neighbors:
-                new_energy += self.bond_energies[self.space[original].polarity][self.space[str(neighbor)].polarity]
-                new_connections.add_edge(aa,str(neighbor))
-                if self.space[original].polarity == -1 and self.space[str(neighbor)].polarity == -1:
-                    new_NCHC += 1
+                if str(neighbor) in replacements:
+                    index = replacements.index(str(neighbor))
+                    new_aa = self.space[originals[index]]
+                    new_polarity = new_aa.polarity
+                    new_energy += self.bond_energies[self.space[original].polarity][new_polarity]
+                    new_connections.add_edge(aa, str(neighbor))
+                    if self.space[original].polarity == -1 and new_polarity == -1:
+                        new_NCHC += 1
+                    new_connections.add_edge(aa,str(neighbor))
+                elif str(neighbor) in self.space:
+                    new_energy += self.bond_energies[self.space[original].polarity][self.space[str(neighbor)].polarity]
+                    new_connections.add_edge(aa,str(neighbor))
+                    if self.space[original].polarity == -1 and self.space[str(neighbor)].polarity == -1:
+                        new_NCHC += 1
             i += 1
-        return new_energy - original_energy, len(new_connections.edges) - len(original_connections.edges), new_NCHC - original_NCHC
+        
+        return round(new_energy - original_energy,2), len(new_connections.edges) - len(original_connections.edges), new_NCHC - original_NCHC
+
+    def validate_chain(self):
+        for start in list(self.start.keys()):
+            i = 0
+            records = []
+            start = self.space[start]
+            while i < 27:
+                if max(start.coordinates) > 30 or min(start.coordinates) < 0:
+                    raise RuntimeError('Periodic Boundary Conditions have been violated.')
+                records.append(start.coordinates)
+                i+= 1
+                next_coordinate = copy.copy(start.next)
+                if next_coordinate is None:
+                    if i==27:
+                        break
+                    else:
+                        print(i)
+                        print(start.coordinates)
+                        sys.exit('broken chain in validation')
+                if next_coordinate in records:
+                    print('\n')
+                    print(records)
+                    print(next_coordinate)
+                    sys.exit('chain duplicated')
+
+                if math.dist(start.coordinates, start.next) not in [1, 30]:
+                    print(start.coordinates, start.next)
+                    sys.exit('invalid neighbors')
+
+                start = self.space[str(next_coordinate)]
+        return True
 
     def move_success(self, deltaE):
         if system_random.random() < np.exp(-deltaE*self.beta):
             return True
         else:
+            return False
+    
+    def move_chain(self, originals, replacements, inflection_point, start_or_end):
+        deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
+        self.validate_chain()
+        if self.move_success(deltaE):
+            self.energy += round(deltaE,2)
+            self.native_contacts += deltaNC
+            self.non_covalent_hydrophobic_contacts += deltaNCHC
+            all_objects = []
+            for aa_step in range(len(originals)):
+                original = copy.copy(originals[aa_step])
+                replacement = copy.copy(replacements[aa_step])
+                replacement_int = [int(i) for i in replacement.strip('][').split(', ')].copy()
+                original_aa = copy.copy(self.space[original])
+                original_aa.coordinates = replacement_int.copy()
+                if start_or_end == 0:
+                    if aa_step != 0: 
+                        original_aa.next = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
+                    if original_aa.previous is not None and len(replacements) > 1 and aa_step < len(originals)-1:
+                        original_aa.previous = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
+                elif start_or_end == 1:
+                    if aa_step != 0:
+                        original_aa.previous = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
+                    if original_aa.next is not None and len(replacements) > 1 and aa_step < len(originals)-1:
+                        original_aa.next = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
+                all_objects.append(copy.copy(original_aa))
+                
+            for aa_step in range(len(originals)):
+                original = originals[aa_step]
+                original_int = [int(i) for i in original.strip('][').split(', ')].copy()
+                replacement = replacements[aa_step]
+                replacement_int = [int(i) for i in replacement.strip('][').split(', ')].copy()
+                replacement_object = copy.copy(all_objects[aa_step])
+                if aa_step ==0:
+                    if original in self.last.keys():
+                        del self.last[copy.copy(original)]
+                        self.last[replacement] = 1
+                    elif original in self.start.keys():
+                        del self.start[copy.copy(original)]
+                        self.start[replacement] = 1
+                    
+                    if len(originals) != self.length_of_polymer:
+                        if start_or_end == 0:
+                            self.space[str(inflection_point)].previous = replacement_int.copy()
+                        else:
+                            self.space[str(inflection_point)].next = replacement_int.copy()
+                if aa_step == len(originals)-1:
+                    if original in self.last.keys():
+                        del self.last[copy.copy(original)]
+                        self.last[replacement] = 1
+                    elif original in self.start.keys():
+                        del self.start[copy.copy(original)]
+                        self.start[replacement] = 1
+                    if start_or_end == 0:
+                        if replacement_object.previous is not None:
+                            self.space[str(replacement_object.previous)].next = replacement_int
+                    else:
+                        if replacement_object.next is not None:
+                            self.space[str(replacement_object.next)].previous = replacement_int
+                self.space[replacement] = replacement_object
+                if original not in replacements:
+                    del self.space[original]
+            self.validate_chain()
+            if self.record_moves:
+                self.acceptance_records.append(1)
+            return True
+        else:
+            if self.record_moves:
+                self.acceptance_records.append(0)
             return False
 
     def add_protein(self, sequence=None, placement='straight', n_polymers=1):
@@ -215,99 +339,6 @@ class lattice():
                 self.last[str(next_coordinates)] = 1
                 self.update_system_energy()
                 self.n_polymers += 1
-
-    def move_chain(self, originals, replacements, inflection_point, start_or_end):
-        deltaE, deltaNC, deltaNCHC = self.find_subsystem_energy(originals, replacements, start_or_end)
-        self.validate_chain()
-        if self.move_success(deltaE):
-            self.energy += deltaE
-            self.native_contacts += deltaNC
-            self.non_covalent_hydrophobic_contacts += deltaNCHC
-            all_objects = []
-            for aa_step in range(len(originals)):
-                original = copy.copy(originals[aa_step])
-                replacement = copy.copy(replacements[aa_step])
-                replacement_int = [int(i) for i in replacement.strip('][').split(', ')].copy()
-                original_aa = copy.copy(self.space[original])
-                original_aa.coordinates = replacement_int.copy()
-                if start_or_end == 0:
-                    if aa_step != 0: 
-                        original_aa.next = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
-                    if original_aa.previous is not None and len(replacements) > 1 and aa_step < len(originals)-1:
-                        original_aa.previous = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
-                elif start_or_end == 1:
-                    if aa_step != 0:
-                        original_aa.previous = [int(i) for i in replacements[aa_step-1].strip('][').split(', ')].copy()
-                    if original_aa.next is not None and len(replacements) > 1 and aa_step < len(originals)-1:
-                        original_aa.next = [int(i) for i in replacements[aa_step+1].strip('][').split(', ')].copy()
-                all_objects.append(copy.copy(original_aa))
-                
-            for aa_step in range(len(originals)):
-                original = originals[aa_step]
-                original_int = [int(i) for i in original.strip('][').split(', ')].copy()
-                replacement = replacements[aa_step]
-                replacement_int = [int(i) for i in replacement.strip('][').split(', ')].copy()
-                replacement_object = copy.copy(all_objects[aa_step])
-                if aa_step ==0:
-                    if start_or_end == 0:
-                        self.space[str(inflection_point)].previous = replacement_int.copy()
-                    else:
-                        self.space[str(inflection_point)].next = replacement_int.copy()
-                if aa_step == len(originals)-1:
-                    if original in self.last.keys():
-                        del self.last[copy.copy(original)]
-                        self.last[replacement] = 1
-                    elif original in self.start.keys():
-                        del self.start[copy.copy(original)]
-                        self.start[replacement] = 1
-                    if start_or_end == 0:
-                        if replacement_object.previous is not None:
-                            self.space[str(replacement_object.previous)].next = replacement_int
-                    else:
-                        if replacement_object.next is not None:
-                            self.space[str(replacement_object.next)].previous = replacement_int
-                self.space[replacement] = replacement_object
-                if original not in replacements:
-                    del self.space[original]
-            self.validate_chain()
-            if self.record_moves:
-                self.acceptance_records.append(1)
-            return True
-        else:
-            if self.record_moves:
-                self.acceptance_records.append(0)
-            return False
-
-    def validate_chain(self):
-        for start in list(self.start.keys()):
-            i = 0
-            records = []
-            start = self.space[start]
-            while i < 27:
-                if max(start.coordinates) > 30 or min(start.coordinates) < 0:
-                    raise RuntimeError('Periodic Boundary Conditions have been violated.')
-                records.append(start.coordinates)
-                i+= 1
-                next_coordinate = copy.copy(start.next)
-                if next_coordinate is None:
-                    if i==27:
-                        break
-                    else:
-                        print(i)
-                        print(start.coordinates)
-                        sys.exit('broken chain in validation')
-                if next_coordinate in records:
-                    print('\n')
-                    print(records)
-                    print(next_coordinate)
-                    sys.exit('chain duplicated')
-
-                if math.dist(start.coordinates, start.next) not in [1, 30]:
-                    print(start.coordinates, start.next)
-                    sys.exit('invalid neighbors')
-
-                start = self.space[str(next_coordinate)]
-        return True
 
     def end_move(self):
         if self.record_moves:
@@ -570,8 +601,125 @@ class lattice():
             self.acceptance_records.append(0)
         
     def reptation_move(self):
-        return True
+        if self.record_moves:
+            self.move_records.append('reptation')
+        polymer_id=system_random.choice(range(len(self.start.keys())))
+        start_or_end=system_random.choice([0,1])
+        coordinates = [ list(self.start.keys()), list(self.last.keys())][start_or_end][polymer_id]
+        originals = []
+        replacements = []
+        originals.append(copy.copy(coordinates))
+        coordinates = [int(i) for i in coordinates.strip('][').split(', ')]
+        tries = 0
+        while tries < 5:
+            tries += 1
+            main_axis = system_random.choice([0, 1, 2])
+            main_direction = system_random.choice([1, -1])
+            rep = coordinates.copy()
+            rep[main_axis] += main_direction
+            rep = self.periodic_coordinate(rep)
+            if str(rep) not in self.space:
+                replacements.append(str(rep))
+                main = coordinates.copy()
+                for i in range(26):
+                    if start_or_end == 0:
+                        main = self.space[str(main)].next
+                    else:
+                        main = self.space[str(main)].previous
+                    replacements.append(originals[-1])
+                    originals.append(str(main))
+                originals.reverse()
+                replacements.reverse()
+                return self.move_chain(originals, replacements, None, start_or_end)
+        self.acceptance_records.append(0)
+        return False
+    
+    def rotation_move(self):
+        if self.record_moves:
+            self.move_records.append('rotation_move')
+        
+        def rotate(center, point, angle):
+            c1, c2 = center
+            p1, p2 = point
+            nx = c1 + math.cos(angle) * (p1 - c1) - math.sin(angle) * (p2 - c2)
+            ny = c2 + math.sin(angle) * (p1 - c1) + math.cos(angle) * (p2 - c2)
+            return round(nx), round(ny)
+    
+        start_point = system_random.choice(list(self.start.keys()))
+        all_records = []
+        point = [int(i) for i in start_point.strip('][').split(', ')]
+        while point is not None:
+            aa = self.space[str(point)]
+            all_records.append(aa.coordinates)
+            point = copy.copy(aa.next)
+        center = self.periodic_coordinate(np.mean(np.array(all_records), axis=0))
+        all_replacements = []
+        tries = 0
+        while len(all_records) != len(all_replacements) and tries < 5:
+            tries += 1
+            all_replacements = []
+            first_axis = system_random.choice([0,1,2])
+            second_axis = system_random.choice([i for i in [0,1,2] if i != first_axis])
+            angle = math.radians(system_random.choice([-90, 90]))
+            for coordinates in all_records:
+                rep = coordinates.copy()
+                n1, n2 = rotate([center[first_axis], center[second_axis]], [rep[first_axis], rep[second_axis]], angle)
+                rep[first_axis] = n1
+                rep[second_axis] = n2
+                rep = self.periodic_coordinate(rep)
+                if str(rep) not in self.space or rep in all_records:
+                    all_replacements.append(str(rep))
+        all_records = [str(i) for i in all_records]
+        if len(all_records) == len(all_replacements):
+            return self.move_chain(all_records, all_replacements, None, 1)
+        else:
+            if self.record_moves:
+                self.acceptance_records.append(0)
+            return False
 
+    def transform_move(self):
+        if self.record_moves:
+            self.move_records.append('transform_move')
+        valid = False
+        originals = []
+        replacements = []
+        tries = 0
+        
+        while not valid and tries < 5:
+            tries += 1
+            valid = False
+            point = system_random.choice(list(self.start.keys()))
+            polymer_id = self.space[point].polymer
+            point = [int(i) for i in point.strip('][').split(', ')]
+            originals = []
+            replacements = []
+            
+            axis = system_random.choice([0, 1, 2])
+            direction = system_random.choice([1, -1])
+            
+            while point is not None:
+                originals.append(str(point))
+                rep = point.copy()
+                rep[axis] += direction
+                rep = self.periodic_coordinate(rep)
+                if str(rep) not in self.space or self.space[str(rep)].polymer == polymer_id:
+                    valid = True
+                    replacements.append(str(rep))
+                else:
+                    valid = False
+                    break
+                point = self.space[str(point)].next
+            
+            if valid:
+                break
+        
+        if not valid:
+            if self.record_moves:
+                self.acceptance_records.append(0)
+                return False
+        else:
+            return self.move_chain(originals, replacements, None, 1)
+        
     def simulate(self, n_mcmc=10000, interval=100, record_intervals=False, anneal=True, beta_lower_bound=0, beta_upper_bound=1, beta_interval=0.05):
         substep = round(n_mcmc*beta_interval/(beta_upper_bound - beta_lower_bound), 0)
         self.beta = beta_lower_bound - beta_interval
@@ -581,15 +729,16 @@ class lattice():
                 if step%substep == 0:
                     self.beta += beta_interval
                     self.beta = round(self.beta, 2)
-            all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move]
+            all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move, self.reptation_move, 
+                            self.rotation_move]
             if self.n_polymers > 1:
-                all_functions.append(self.reptation_move)
+                all_functions.append(self.transform_move)
             system_random.choice(all_functions)()
             self.n_mcmc += 1
             if record_intervals and step%interval == 0 and step > 0:
                 out = self.visualize(simulating=True)
                 self.records.append(out)
-                self.energy_records.append(copy.copy(self.energy))
+                self.energy_records.append(copy.copy(round(self.energy,2)))
                 self.beta_records.append(copy.copy(self.beta))
                 self.native_contacts_records.append(copy.copy(self.native_contacts))
                 self.nchc_records.append(copy.copy(self.non_covalent_hydrophobic_contacts))
