@@ -1,7 +1,7 @@
 # LatticePy
 A python package for MCMC simulations of folding and phase separation in biomolecules on a lattice. LatticePy currently supports the simulation of amino acids and protein polymers on a lattice with any given number of units.
 
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/sohitmiglani/LatticePy/.github/workflows?label=build)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/sohitmiglani/LatticePy/.github/workflows/python-package.yml?branch=main)
 
 ## Installation
 
