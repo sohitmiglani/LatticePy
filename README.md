@@ -4,7 +4,7 @@ A python package for MCMC simulations of folding and phase separation in biomole
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/sohitmiglani/LatticePy/.github/workflows/python-package.yml?branch=main)
 [![PyPI version](https://img.shields.io/pypi/v/LatticePy.svg)](https://pypi.org/project/LatticePy)
 [![License](https://img.shields.io/pypi/l/LatticePy.svg)](https://github.com/sohitmiglani/LatticePy/LICENSE.md)
-[![PyPIDownloads][pepy-badge]][pepy-link]
+![PyPI - Downloads](https://img.shields.io/pypi/:period/LatticePy)
 
 ## Installation
 
