@@ -1,6 +1,6 @@
-matplotlib==3.7.2
-seaborn==0.12.2
-pandas==2.0.3
-numpy==1.24.4
-plotly==5.15.0
-networkx==3.1
+matplotlib==3.9.2
+seaborn==0.13.2
+pandas==2.2.2
+numpy==2.1.0
+plotly==5.23.0
+networkx==3.3

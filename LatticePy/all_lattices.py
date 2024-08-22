@@ -102,7 +102,7 @@ class lattice():
                         if aa.polymer == self.space[str(neighbor)].polymer:
                             indiv_ncs += 1
                             indiv_energy += round(self.bond_energies[aa.polarity][self.space[str(neighbor)].polarity],2)
-                if aa.previous != None:
+                if aa.previous is not None:
                     aa = self.space[str(aa.previous)]
                 else:
                     break
@@ -248,28 +248,22 @@ class lattice():
             i = 0
             records = []
             start = self.space[start]
-            while i < 27:
+            while i < self.length_of_polymer:
                 if max(start.coordinates) > 30 or min(start.coordinates) < 0:
                     raise RuntimeError('Periodic Boundary Conditions have been violated.')
-                records.append(start.coordinates)
+                records.append(str(start.coordinates))
                 i+= 1
                 next_coordinate = copy.copy(start.next)
                 if next_coordinate is None:
-                    if i==27:
+                    if i==self.length_of_polymer:
                         break
                     else:
-                        print(i)
-                        print(start.coordinates)
-                        sys.exit('broken chain in validation')
-                if next_coordinate in records:
-                    print('\n')
-                    print(records)
-                    print(next_coordinate)
-                    sys.exit('chain duplicated')
+                        raise RuntimeError('The chain has broken. The polymer does not have the specified number of residues.')
+                if str(next_coordinate) in records:
+                    raise RuntimeError('The chain has two residues on the same site')
 
                 if math.dist(start.coordinates, start.next) not in [1, 30]:
-                    print(start.coordinates, start.next)
-                    sys.exit('invalid neighbors')
+                    raise RuntimeError('The distance between neighbors is not valid. The chain has broken.')
 
                 start = self.space[str(next_coordinate)]
                 
@@ -1053,7 +1047,7 @@ class lattice():
                 y.append(coordinates[1])
                 z.append(coordinates[2])
                 polarities.append(current.polarity)
-                if current.previous == None:
+                if current.previous is None:
                     break
                 else:
                     current = self.space[str(current.previous)]
