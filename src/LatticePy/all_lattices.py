@@ -17,7 +17,7 @@ system_random = random.SystemRandom()
 pio.renderers.default = 'iframe_connected'
 
 class lattice():
-    def __init__(self, bound, E_c, beta=0, lattice_type='simple_cubic', record_moves=False):
+    def __init__(self, bound, E_c, beta=0, lattice_type='simple_cubic', record_moves=False, allow_cluster_move=True):
         self.lattice_type = lattice_type
         self.record_moves = record_moves
         self.bound = bound
@@ -49,6 +49,7 @@ class lattice():
         self.individual_ncs_records = []
         self.individual_nchcs = []
         self.individual_nchcs_records = []
+        self.allow_cluster_move = allow_cluster_move
         bonds = [-1,-1,1,-1,1,1]
         bond_energies = [-2.3-E_c, -1-E_c, -E_c]
         
@@ -930,7 +931,9 @@ class lattice():
             all_functions = [self.end_move, self.corner_move, self.corner_move_anywhere, self.corner_flip, self.crankshaft_move, self.reptation_move, 
                             self.rotation_move]
             if self.n_polymers > 1:
-                all_functions = all_functions + [self.transform_move, self.cluster_move]
+                all_functions = all_functions + [self.transform_move]
+                if self.allow_cluster_move:
+                    all_functions = all_functions + [self.cluster_move]
             system_random.choice(all_functions)()
             self.validate_chain()
             self.n_mcmc += 1

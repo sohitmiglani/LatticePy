@@ -62,9 +62,6 @@ mylattice.energy_variation_graph()
 mylattice.visualize()
 ```
 
-You can see the interactive 3-D lattice for this run <a href="https://www.sohitmiglani.com/LatticePy_figure" 
-                                                        target="_blank" rel="noopener noreferrer">here.<a/>
-
 ### - Get important statistics
 
 ```python
