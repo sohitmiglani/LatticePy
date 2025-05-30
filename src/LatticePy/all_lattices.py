@@ -4,15 +4,13 @@ import math
 import plotly
 import random
 import numpy as np
-import pandas as pd
-import seaborn as sns 
+import pandas as pd 
 import networkx as nx
 import plotly.io as pio
 from .objects import amino_acid
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
-sns.set()
 system_random = random.SystemRandom()
 pio.renderers.default = 'iframe_connected'
 
