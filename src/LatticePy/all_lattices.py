@@ -17,7 +17,7 @@ system_random = random.SystemRandom()
 pio.renderers.default = 'iframe_connected'
 
 class lattice():
-    def __init__(self, bound, E_c, beta=0, lattice_type='simple_cubic', record_moves=False, allow_cluster_move=True):
+    def __init__(self, bound, E_c, bond_energies, beta=0, lattice_type='simple_cubic', record_moves=False, allow_cluster_move=True):
         self.lattice_type = lattice_type
         self.record_moves = record_moves
         self.bound = bound
@@ -25,9 +25,6 @@ class lattice():
         self.start = dict()
         self.last = dict()
         self.energy = 0
-        self.bond_energies = dict()
-        self.bond_energies[1] = {}
-        self.bond_energies[-1] = {}
         self.native_contacts = 0
         self.non_covalent_hydrophobic_contacts = 0
         self.beta = beta
@@ -50,12 +47,9 @@ class lattice():
         self.individual_nchcs = []
         self.individual_nchcs_records = []
         self.allow_cluster_move = allow_cluster_move
-        bonds = [-1,-1,1,-1,1,1]
-        bond_energies = [-2.3-E_c, -1-E_c, -E_c]
-        
-        for i in range(3):
-            self.bond_energies[bonds[2*i]][bonds[2*i+1]] = bond_energies[i]
-            self.bond_energies[bonds[2*i+1]][bonds[2*i]] = bond_energies[i]
+        self.cluster_records = []
+        self.cluster_size_records = []
+        self.bond_energies = bond_energies
             
     def periodic_coordinate(self, coordinates):
         return [round(coordinates[0]%(self.bound +1)), 
@@ -117,6 +111,8 @@ class lattice():
         self.native_contacts = len(original_connections.edges)
         self.non_covalent_hydrophobic_contacts = hydrophobic_contacts
         self.energy = round(energy,2)
+        self.cluster_records = [self.calculate_number_of_clusters()]
+        self.cluster_size_records = [self.collect_networks()]
 
     def measure_system_energy(self, new_space, new_starts, new_lasts, nearest_neighbors=True):
         original_connections=nx.Graph()
@@ -250,7 +246,7 @@ class lattice():
             records = []
             start = self.space[start]
             while i < self.length_of_polymer:
-                if max(start.coordinates) > 30 or min(start.coordinates) < 0:
+                if max(start.coordinates) > self.bound or min(start.coordinates) < 0:
                     raise RuntimeError('Periodic Boundary Conditions have been violated.')
                 records.append(str(start.coordinates))
                 i+= 1
@@ -263,7 +259,7 @@ class lattice():
                 if str(next_coordinate) in records:
                     raise RuntimeError('The chain has two residues on the same site')
 
-                if math.dist(start.coordinates, start.next) not in [1, 30]:
+                if math.dist(start.coordinates, start.next) not in [1, self.bound]:
                     raise RuntimeError('The distance between neighbors is not valid. The chain has broken.')
 
                 start = self.space[str(next_coordinate)]
@@ -372,10 +368,9 @@ class lattice():
         polymers_placed = 0
 
         while polymers_placed < n_polymers:
-            polymer_id = polymers_placed
-            valid_path=False
+            polymer_id = len(self.start)
             new_coords = None
-            if len(self.start) > 0:
+            if len(self.start) > 0 and placement=='straight':
                 new_coords = system_random.choice(list(self.start.keys()))
                 new_coords = [int(i) for i in new_coords.strip('][').split(', ')].copy()
                 axis_start = system_random.choice([0,1,2])
@@ -388,55 +383,70 @@ class lattice():
                 new_coords = [x, y, z]
             
             new_coords = self.periodic_coordinate(new_coords)
+            if str(new_coords) in self.space:
+                continue
             
-            all_placements = [] 
-            valid_path=True
-            
-            if str(new_coords) not in self.space:
-                if placement == 'straight':
-                    axis = system_random.choice([0,1,2])
-                    direction = system_random.choice([1, -1])
-                    for i in range(1, length):
-                        tries = 0 
-                        while tries < 5:
-                            tries += 1
-                            new = new_coords.copy()
-                            new[axis] += direction*i
-                            new = self.periodic_coordinate(new)
-                            if str(new) not in self.space:
-                                all_placements.append(new.copy())
-                                break
-                elif placement == 'randomly':
-                    coordinates = new_coords.copy()
-                    for i in range(length-1):
-                        tries = 0 
-                        while tries < 5:
-                            tries += 1
-                            next_coordinates = coordinates.copy()
-                            axis = system_random.randint(0,2)
-                            next_coordinates[axis] += system_random.randint(-1,1)
-                            next_coordinates = self.periodic_coordinate(next_coordinates)
-                            if str(next_coordinates) not in self.space and next_coordinates not in all_placements:
-                                all_placements.append(next_coordinates.copy())
-                                break
-                        coordinates = next_coordinates.copy()
-            if len(all_placements) == length-1:
-                self.start[str(new_coords)] = len(self.start)
-                self.space[str(new_coords)] = amino_acid(polymer[0],new_coords, polymer_id)
-                current_aa = self.space[str(new_coords)]
+            all_placements = []
+            all_placements.append(new_coords)
+            valid_path = True
+            if placement == 'straight':
+                axis = system_random.choice([0,1,2])
+                direction = system_random.choice([1, -1])
+                for i in range(1, length):
+                    tries = 0 
+                    while tries < 5:
+                        tries += 1
+                        new = new_coords.copy()
+                        new[axis] += direction*i
+                        new = self.periodic_coordinate(new)
+                        if str(new) not in self.space:
+                            all_placements.append(new.copy())
+                            break
+            elif placement == 'randomly':
+                coordinates = new_coords.copy()
                 for i in range(length-1):
+                    tries = 0 
+                    next_coordinates = coordinates.copy()
+                    while tries < 5 and valid_path:
+                        tries += 1
+                        neighbors = []
+                        for i in range(3):
+                            neighbor = coordinates.copy()
+                            neighbor[i] += 1
+                            neighbor_rev = coordinates.copy()
+                            neighbor_rev[i] += -1
+                            neighbors.append(self.periodic_coordinate(neighbor))
+                            neighbors.append(self.periodic_coordinate(neighbor_rev))
+                        neighbors = [neighbor for neighbor in neighbors if neighbor not in all_placements and str(neighbor) not in self.space]
+                        if len(neighbors) == 0:
+                            valid_path = False
+                            break
+                        else:
+                            next_coordinates = system_random.choice(neighbors)
+                            all_placements.append(next_coordinates)
+                            break
+                    if not valid_path:
+                        break
+                    coordinates = next_coordinates.copy()
+                    
+            if len(all_placements) == length:
+                self.start[str(new_coords)] = polymer_id
+                self.space[str(new_coords)] = amino_acid(polymer[0], new_coords, polymer_id)
+                current_aa = self.space[str(new_coords)]
+                for i in range(1, length):
                     next_coordinates = all_placements[i]
                     self.space[str(current_aa.coordinates)].next = next_coordinates
-                    self.space[str(next_coordinates)] = amino_acid(polymer[i+1], next_coordinates, polymer_id)
+                    self.space[str(next_coordinates)] = amino_acid(polymer[i], next_coordinates, polymer_id)
                     self.space[str(next_coordinates)].previous = current_aa.coordinates.copy()
                     current_aa = self.space[str(next_coordinates)]
                 polymers_placed += 1
                 self.length_of_polymer = length
                 self.n_polymers += 1
-                self.last[str(next_coordinates)] = self.n_polymers - 1
-                self.update_system_energy()
-                
+                self.last[str(next_coordinates)] = polymer_id
+                self.validate_chain()
 
+        self.update_system_energy()
+                
     def end_move(self):
         if self.record_moves:
             self.move_records.append('end_move')
@@ -832,6 +842,18 @@ class lattice():
                         complexes.add_edge(aa.polymer, self.space[str(neighbor)].polymer)
                 next = aa.next
         return complexes
+
+    def calculate_number_of_clusters(self):
+        clusters = []
+        for cluster in nx.connected_components(self.complexes()):
+            clusters.append(list(cluster))
+        return len(clusters)
+
+    def collect_networks(self):
+        clusters = []
+        for cluster in nx.connected_components(self.complexes()):
+            clusters.append(list(cluster))
+        return clusters
         
     def cluster_move(self):
         if self.record_moves:
@@ -874,7 +896,7 @@ class lattice():
                         object.previous[direction] += step
                         object.previous = self.periodic_coordinate(object.previous)
                     
-                    if i == 26:
+                    if i == self.length_of_polymer-1:
                         if polymer in list(new_lasts.values()):
                             del new_lasts[str(original_coordinates)]
                         new_lasts[str(object.coordinates)] = polymer
@@ -945,6 +967,8 @@ class lattice():
                 self.individual_energy_records.append(copy.copy(self.individual_energy))
                 self.individual_ncs_records.append(copy.copy(self.individual_ncs))
                 self.individual_nchcs_records.append(copy.copy(self.individual_nchcs))
+                self.cluster_records.append(self.calculate_number_of_clusters())
+                self.cluster_size_records.append(self.collect_networks())
                 if not self.plateaued and len(self.energy_records) > 30 and np.var(self.energy_records[-30:-1]) < 2:
                     self.plateau_time = copy.copy(self.n_mcmc)
                     self.plateaued = True
